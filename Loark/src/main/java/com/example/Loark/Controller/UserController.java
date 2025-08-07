@@ -1,6 +1,7 @@
 package com.example.Loark.Controller;
 
 import com.example.Loark.DTO.LoginRequest;
+import com.example.Loark.DTO.LoginResponse;
 import com.example.Loark.DTO.RegisterRequest;
 import com.example.Loark.Service.UserService;
 import lombok.RequiredArgsConstructor;
@@ -22,8 +23,8 @@ public class UserController {
     }
 
     @PostMapping("/login")
-    public ResponseEntity<String> login(@RequestBody LoginRequest request) {
-        String token = userService.login(request);
-        return ResponseEntity.ok(token);
+    public ResponseEntity<LoginResponse> login(@RequestBody LoginRequest request) {
+        LoginResponse response = userService.login(request);
+        return ResponseEntity.ok(response);
     }
 }

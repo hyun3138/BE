@@ -8,6 +8,7 @@ import com.example.Loark.Security.JwtUtil;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
+import com.example.Loark.DTO.LoginResponse;
 
 import java.time.LocalDateTime;
 
@@ -34,14 +35,15 @@ public class UserService {
         userRepository.save(user);
     }
 
-    public String login(LoginRequest request) {
+    public LoginResponse login(LoginRequest request) {
         User user = userRepository.findByUserEmail(request.getEmail())
                 .orElseThrow(() -> new IllegalArgumentException("존재하지 않는 이메일입니다."));
-
-        if(!passwordEncoder.matches(request.getPassword(), user.getUserPassword())) {
+        if (!passwordEncoder.matches(request.getPassword(), user.getUserPassword())) {
             throw new IllegalArgumentException("비밀번호가 일치하지 않습니다.");
         }
 
-        return jwtUtil.createToken((user.getUserEmail()));
+        String token = jwtUtil.createToken(user.getUserEmail());
+
+        return new LoginResponse(token, user.getUserNickname());
     }
 }

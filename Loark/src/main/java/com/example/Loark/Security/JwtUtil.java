@@ -8,7 +8,7 @@ import java.util.Date;
 @Component
 public class JwtUtil {
 
-    private final String secretKey = "key"; // 환경변수로 바꾸기
+    private final String secretKey = "skX2mS7gVbT0Pq9Fj3HsLwZy1NcRt8Ux"; // 환경변수로 바꾸기
     private final long EXPIRATION = 1000 * 60 * 60;
 
     public String createToken(String email) {
