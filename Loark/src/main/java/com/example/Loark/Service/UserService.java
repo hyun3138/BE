@@ -19,16 +19,23 @@ public class UserService {
     private final UserRepository userRepository;
     private final PasswordEncoder passwordEncoder;
     private final JwtUtil jwtUtil;
+    private final LostarkApiClient lostarkApiClient;
 
     public void register(RegisterRequest request) {
         if(userRepository.existsByUserEmail(request.getEmail())) {
             throw new IllegalArgumentException("이미 가입된 이메일입니다.");
+        }
+        
+        boolean verified = lostarkApiClient.verifyNickname(request.getApiKey(), request.getNickname());
+        if(!verified) {
+            throw new IllegalArgumentException("닉네임 인증 실패 : API 키 오류 또는 닉네임 불일치");
         }
 
         User user = User.builder()
                 .userEmail(request.getEmail())
                 .userPassword(passwordEncoder.encode(request.getPassword()))
                 .userApiKey(request.getApiKey())
+                .userNickname(request.getNickname())
                 .userCreatedAt(LocalDateTime.now())
                 .build();
 
