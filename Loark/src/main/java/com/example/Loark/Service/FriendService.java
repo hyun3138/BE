@@ -6,18 +6,23 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
 
 @Service
 @RequiredArgsConstructor
+@Transactional(readOnly = true)
 public class FriendService {
+
+
 
     private final FriendRepository friendRepository;
     private final BlockedUserRepository blockedUserRepository;
     private final UserRepository userRepository;
 
     // 친구 요청
+    @Transactional
     public void sendRequest(Long me, Long targetId) {
         if(me.equals(targetId)) {
             throw new IllegalArgumentException("자기 자신에게 요청 불가");
@@ -55,6 +60,7 @@ public class FriendService {
     }
 
     // 수락
+    @Transactional
     public void accept(Long me, Long friendId) {
         Friend friend = friendRepository.findByFriendIdAndStatus(friendId, FriendStatus.PENDING)
                 .orElseThrow(() -> new IllegalArgumentException("대기중인 요청 없음"));
@@ -67,6 +73,7 @@ public class FriendService {
     }
     
     // 거절
+    @Transactional
     public void decline(Long me, Long friendId) {
         Friend friend = friendRepository.findByFriendIdAndStatus(friendId, FriendStatus.PENDING)
                 .orElseThrow(() -> new IllegalArgumentException("대기중인 요청 없음"));
@@ -79,12 +86,15 @@ public class FriendService {
     }
 
     // 삭제
+    @Transactional
     public void delete(Long me, Long friendId) {
         if (!friendRepository.belongsToUser(friendId, me)) {
             throw new IllegalStateException("삭제 권한 없음");
         }
         friendRepository.deleteById(friendId);
     }
+
+
 
     // 목록 조회
     public Page<Friend> list(Long me, String status, String query, Pageable pageable) {
@@ -102,6 +112,7 @@ public class FriendService {
     }
 
     // 차단
+    @Transactional
     public void block(Long me, Long targetId) {
         if (me.equals(targetId)) throw new IllegalArgumentException("자기 자신 차단 불가");
         if (blockedUserRepository.existsAnyBlockBetween(me, targetId)) {
@@ -119,6 +130,7 @@ public class FriendService {
     }
 
     // 차단 해제
+    @Transactional
     public void unblock(Long me, Long targetId) {
         blockedUserRepository.deleteByBlocker_UserIdAndBlocked_UserId(me, targetId);
     }

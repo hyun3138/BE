@@ -1,6 +1,7 @@
 package com.example.Loark.Repository;
 
 import com.example.Loark.Entity.BlockUser;
+import jakarta.transaction.Transactional;
 import org.springframework.data.jpa.repository.*;
 import org.springframework.data.repository.query.Param;
 
@@ -23,5 +24,7 @@ public interface  BlockedUserRepository extends JpaRepository<BlockUser, Long> {
     List<BlockUser> findByBlocker_UserId(Long blockerId);
 
     // 차단 해제
+    @Modifying(clearAutomatically = true)
+    @Transactional
     void deleteByBlocker_UserIdAndBlocked_UserId(Long blockerId, Long blockedId);
 }
