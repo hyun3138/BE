@@ -41,7 +41,7 @@ public class UserServiceTest {
 
     @Test
     void 회원가입_성공() {
-        RegisterRequest request = new RegisterRequest("test@example.com", "1234", "api-key");
+        RegisterRequest request = new RegisterRequest("test@example.com", "1234", "api-key", "testNickname");
         when(userRepository.existsByUserEmail("test@example.com")).thenReturn(false);
         when(passwordEncoder.encode("1234")).thenReturn("encoded1234");
         userService.register(request);
@@ -50,7 +50,7 @@ public class UserServiceTest {
 
     @Test
     void 회원가입_중복_이메일() {
-        RegisterRequest request = new RegisterRequest("test@example.com", "1234", "api-key");
+        RegisterRequest request = new RegisterRequest("test@example.com", "1234", "api-key", "testNickname");
         when(userRepository.existsByUserEmail("test@example.com")).thenReturn(true);
         assertThrows(IllegalArgumentException.class, () -> userService.register(request));
     }
@@ -94,7 +94,7 @@ public class UserServiceTest {
 
     @Test
     void 회원가입_중복_이메일_예외() {
-        RegisterRequest request = new RegisterRequest("dup@example.com", "1234", "apikey");
+        RegisterRequest request = new RegisterRequest("dup@example.com", "1234", "apikey", "testNickname");
         when(userRepository.existsByUserEmail("dup@example.com")).thenReturn(true);
 
         assertThrows(IllegalArgumentException.class, () -> userService.register(request));

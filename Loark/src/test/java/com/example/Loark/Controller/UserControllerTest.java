@@ -47,7 +47,7 @@ public class UserControllerTest {
     @Test
     @DisplayName("회원가입 성공")
     void register_success() throws Exception {
-        RegisterRequest request = new RegisterRequest("test@example.com", "1234", "apu-key");
+        RegisterRequest request = new RegisterRequest("test@example.com", "1234", "apu-key", "testNickName");
 
         mockMvc.perform(post("/api/users/register")
                 .contentType(MediaType.APPLICATION_JSON)

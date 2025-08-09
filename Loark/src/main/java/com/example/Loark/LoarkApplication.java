@@ -8,7 +8,6 @@ public class LoarkApplication {
 
 	public static void main(String[] args) {
 		SpringApplication.run(LoarkApplication.class, args);
-		// test
 	}
 
 }
