@@ -61,11 +61,12 @@ public class AuthController {
                     HttpStatus.UNAUTHORIZED);
         }
 
-        String authCode = lostArkAuth.genRandCode(user);
+        // User 파라미터 없이 메소드 호출
+        String authCode = lostArkAuth.genRandCode();
         user.setAuthCode(authCode);
         userRepository.save(user);
 
-        if (authCode != null && !authCode.isEmpty()) {
+        if (authCode != null && !authCode.isEmpty() && !authCode.equals("RANDOM_CODE_GENERATION_ERROR")) {
             return new ResponseEntity<>(
                     new DefaultResponse<>(StatusCode.OK, ResponseMessage.CERTIFICATION_CODE_SUCCESS, authCode),
                     HttpStatus.OK);
