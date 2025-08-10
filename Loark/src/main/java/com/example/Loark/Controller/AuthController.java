@@ -33,14 +33,14 @@ public class AuthController {
             return ResponseEntity.ok(Map.of("authenticated", false));
         }
 
-        // null 값을 허용하는 HashMap 사용
         Map<String, Object> responseBody = new HashMap<>();
         responseBody.put("authenticated", true);
         responseBody.put("userId", u.getUserId());
         responseBody.put("displayName", u.getDisplayName());
         responseBody.put("email", u.getUserEmail());
         responseBody.put("pictureUrl", u.getPictureUrl());
-        responseBody.put("stoveMemberNo", u.getStoveMemberNo()); // 이제 null이어도 문제 없음
+        responseBody.put("stoveMemberNo", u.getStoveMemberNo());
+        responseBody.put("mainCharacter", u.getMainCharacter()); // 대표 캐릭터 정보 추가
 
         return ResponseEntity.ok(responseBody);
     }
@@ -93,11 +93,15 @@ public class AuthController {
                     HttpStatus.BAD_REQUEST);
         }
 
+        // 서비스 호출 (이제 성공 시 대표 캐릭터명을 반환)
         DefaultResponse<String> verificationResponse = lostArkAuth.verifyStoveProfile(user, stoveUrl);
 
         if (verificationResponse.getStatusCode() == StatusCode.OK) {
             // 인증 성공 시, 사용자 정보 업데이트
-            String stoveMemberNo = verificationResponse.getData();
+            String mainCharacter = verificationResponse.getData();
+            String stoveMemberNo = lostArkAuth.getStoveNo(stoveUrl).getData(); // stoveMemberNo 다시 추출
+
+            user.setMainCharacter(mainCharacter);
             user.setStoveMemberNo(stoveMemberNo);
             user.setStoveProfileUrl(stoveUrl);
             userRepository.save(user);

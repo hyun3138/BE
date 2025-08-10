@@ -46,6 +46,9 @@ public class User {
     @Column(name = "stove_member_no")
     private String stoveMemberNo; // 스토브 회원 번호
 
+    @Column(name = "main_character")
+    private String mainCharacter; // 대표 캐릭터명
+
     @JsonIgnore
     @Column(name = "user_password", nullable = true)
     private String userPassword;
