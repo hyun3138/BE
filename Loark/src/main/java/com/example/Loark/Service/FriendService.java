@@ -98,9 +98,9 @@ public class FriendService {
 
     // 목록 조회
     public Page<Friend> list(Long me, String status, String query, Pageable pageable) {
-        if ("PENDING_IN".equalsIgnoreCase(status)) {
+        if ("PENDING".equalsIgnoreCase(status)) {
             return friendRepository.findPendingIn(me, pageable);
-        } else if ("PENDING_OUT".equalsIgnoreCase(status)) {
+        } else if ("REQUESTED".equalsIgnoreCase(status)) {
             return friendRepository.findPendingOut(me, pageable);
         } else if ("ACCEPTED".equalsIgnoreCase(status)) {
             if (query != null && !query.isBlank()) {
@@ -108,7 +108,7 @@ public class FriendService {
             }
             return friendRepository.findAccepted(me, pageable);
         }
-        throw new IllegalArgumentException("잘못된 status 값");
+        throw new IllegalArgumentException("잘못된 status 값: " + status);
     }
 
     // 차단
