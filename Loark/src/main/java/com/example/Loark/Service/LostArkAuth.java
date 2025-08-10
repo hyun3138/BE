@@ -14,8 +14,10 @@ import org.springframework.stereotype.Service;
 import java.io.BufferedReader;
 import java.io.InputStreamReader;
 import java.io.OutputStream;
+import java.math.BigInteger;
 import java.net.HttpURLConnection;
 import java.net.URL;
+import java.security.SecureRandom;
 import java.util.Base64;
 
 @Service
@@ -23,16 +25,24 @@ public class LostArkAuth {
 
     private final ObjectMapper objectMapper = new ObjectMapper();
 
-    public String genRandCode(User user) {
-        String randCode = "";
-        Base64.Encoder encode = Base64.getEncoder();
+    /**
+     * 암호학적으로 안전한 난수를 생성하여 Base64로 인코딩된 랜덤 코드를 반환합니다.
+     * @return 랜덤 인증 코드
+     */
+    public String genRandCode() {
         try {
-            byte[] encodeData = encode.encode(user.getGoogleSub().getBytes());
-            randCode = new String(encodeData);
+            // 1. 암호학적으로 안전한 난수 생성기 사용
+            SecureRandom random = new SecureRandom();
+            // 2. 16바이트(128비트)의 랜덤 바이트 생성
+            byte[] bytes = new byte[16];
+            random.nextBytes(bytes);
+            // 3. Base64로 인코딩하여 URL-safe한 문자열로 만듦
+            return Base64.getUrlEncoder().withoutPadding().encodeToString(bytes);
         } catch (Exception e) {
-            System.out.println(e.getMessage());
+            e.printStackTrace();
+            // 예외 발생 시 대체 코드를 반환하거나, 더 강력한 오류 처리가 필요할 수 있음
+            return "RANDOM_CODE_GENERATION_ERROR";
         }
-        return randCode;
     }
 
     public DefaultResponse<String> verifyStoveProfile(User user, String stoveUrl) {
