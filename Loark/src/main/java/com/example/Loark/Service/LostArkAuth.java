@@ -24,7 +24,6 @@ public class LostArkAuth {
     private final ObjectMapper objectMapper = new ObjectMapper();
 
     public String genRandCode(User user) {
-        // ... (이전과 동일)
         String randCode = "";
         Base64.Encoder encode = Base64.getEncoder();
         try {
@@ -104,17 +103,27 @@ public class LostArkAuth {
         return (nameElement != null) ? nameElement.text() : null;
     }
 
+    /**
+     * 스토브 URL에서 멤버 번호를 추출하고 유효성을 검사합니다.
+     * URL 마지막에 '/'가 있어도 처리합니다.
+     */
     public DefaultResponse<String> getStoveNo(String url) {
-        // ... (이전과 동일)
         if (url == null || !url.startsWith("https://profile.onstove.com/ko/")) {
             return new DefaultResponse<>(StatusCode.URL_ERROR, ResponseMessage.STOVE_URL_AGAIN, null);
         }
         String memberNo = url.substring("https://profile.onstove.com/ko/".length());
+
+        // URL 끝에 '/'가 있으면 제거
+        if (memberNo.endsWith("/")) {
+            memberNo = memberNo.substring(0, memberNo.length() - 1);
+        }
+
         try {
-            Long.parseLong(memberNo);
+            Long.parseLong(memberNo); // 숫자 형식인지 확인
         } catch (NumberFormatException e) {
             return new DefaultResponse<>(StatusCode.URL_ERROR, ResponseMessage.STOVE_URL_AGAIN, null);
         }
+
         return new DefaultResponse<>(StatusCode.OK, "멤버 번호 추출 성공", memberNo);
     }
 
