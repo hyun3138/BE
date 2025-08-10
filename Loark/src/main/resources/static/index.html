@@ -1,0 +1,279 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <title>Loark 기능 테스트</title>
+    <style>
+        body { font-family: sans-serif; padding: 20px; }
+        .container { max-width: 800px; margin: auto; }
+        .section { margin-bottom: 30px; padding: 15px; border: 1px solid #ccc; border-radius: 5px; }
+        h2 { border-bottom: 2px solid #eee; padding-bottom: 10px; }
+        h3 { margin-top: 20px; }
+        button { margin: 5px; }
+        input[type="text"] { padding: 5px; margin-right: 10px; width: 300px; }
+        #userInfo, #friendList, #blockedList, #authCodeDisplay, #verificationResult { margin-top: 15px; }
+        .hidden { display: none; }
+        li { list-style-type: none; padding: 5px 0; border-bottom: 1px solid #eee; }
+        #authCodeDisplay, #verificationResult {
+            margin-top: 10px;
+            padding: 10px;
+            border: 1px solid #ddd;
+            background: #f9f9f9;
+            word-wrap: break-word;
+        }
+        #verified-status { color: green; font-weight: bold; }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <h1>Loark 기능 테스트 페이지</h1>
+
+    <div class="section">
+        <h2>인증</h2>
+        <div id="auth-logged-out">
+            <a href="/oauth2/authorization/google"><button>Google로 로그인</button></a>
+        </div>
+        <div id="auth-logged-in" class="hidden">
+            <div id="userInfo"></div>
+            <button onclick="logout()">로그아웃</button>
+            <hr>
+            <h3>로스트아크 계정 인증</h3>
+
+            <div id="stove-verification-process">
+                <div id="get-code-step">
+                    <p><b>1단계: 인증 코드 발급</b></p>
+                    <p>아래 버튼을 눌러 인증 코드를 발급받은 후, 로스트아크 홈페이지 자기소개에 붙여넣어 주세요.</p>
+                    <a href="https://profile.onstove.com/" target="_blank"><button>로스트아크 프로필 바로가기</button></a>
+                    <button onclick="getAuthCode()">인증 코드 발급받기</button>
+                    <div id="authCodeDisplay"></div>
+                </div>
+                <hr>
+
+                <div id="verify-step">
+                    <p><b>2단계: 인증 완료하기</b></p>
+                    <p>자기소개를 업데이트한 후, 본인의 프로필 URL을 아래에 붙여넣고 인증 버튼을 누르세요.</p>
+                    <input type="text" id="stoveUrlInput" placeholder="https://profile.onstove.com/ko/..." size="50">
+                    <button onclick="verifyStove()">인증하기</button>
+                    <div id="verificationResult"></div>
+                </div>
+            </div>
+
+            <div id="verified-status" class="hidden">
+                <p>✅ 로스트아크 계정 인증 완료!</p>
+                <p>대표 캐릭터: <strong id="mainCharacterDisplay"></strong></p>
+            </div>
+        </div>
+    </div>
+
+    <div id="friend-section" class="section hidden">
+        <h2>친구 관리</h2>
+        <div>
+            <input type="text" id="friendRequestInput" placeholder="친구 요청할 유저 ID">
+            <button onclick="sendFriendRequest()">친구 요청 보내기</button>
+        </div>
+        <hr>
+        <div>
+            <button onclick="getFriends('PENDING')">받은 요청</button>
+            <button onclick="getFriends('REQUESTED')">보낸 요청</button>
+            <button onclick="getFriends('ACCEPTED')">친구 목록</button>
+        </div>
+        <ul id="friendList"></ul>
+    </div>
+
+    <div id="block-section" class="section hidden">
+        <h2>사용자 차단</h2>
+        <div>
+            <input type="text" id="blockUserInput" placeholder="차단할 유저 ID">
+            <button onclick="blockUser()">차단하기</button>
+        </div>
+        <hr>
+        <button onclick="getBlockedUsers()">차단 목록 보기 (미구현)</button>
+        <ul id="blockedList"></ul>
+    </div>
+
+</div>
+
+<script>
+    let currentUser = null;
+
+    window.onload = checkAuth;
+
+    async function checkAuth() {
+        const response = await fetch('/auth/me');
+        const data = await response.json();
+
+        const loggedOutView = document.getElementById('auth-logged-out');
+        const loggedInView = document.getElementById('auth-logged-in');
+        const friendSection = document.getElementById('friend-section');
+        const blockSection = document.getElementById('block-section');
+
+        if (data.authenticated) {
+            currentUser = data;
+            loggedOutView.classList.add('hidden');
+            loggedInView.classList.remove('hidden');
+            friendSection.classList.remove('hidden');
+            blockSection.classList.remove('hidden');
+            document.getElementById('userInfo').innerHTML = `
+                <p><strong>ID:</strong> ${data.userId}</p>
+                <p><strong>이름:</strong> ${data.displayName}</p>
+                <p><strong>이메일:</strong> ${data.email}</p>
+                <img src="${data.pictureUrl}" alt="Profile Picture" width="50">
+            `;
+
+            const verificationProcess = document.getElementById('stove-verification-process');
+            const verifiedStatus = document.getElementById('verified-status');
+
+            if (data.mainCharacter) {
+                // 이미 인증된 경우
+                verificationProcess.classList.add('hidden');
+                verifiedStatus.classList.remove('hidden');
+                document.getElementById('mainCharacterDisplay').textContent = data.mainCharacter;
+            } else {
+                // 아직 인증되지 않은 경우
+                verificationProcess.classList.remove('hidden');
+                verifiedStatus.classList.add('hidden');
+            }
+
+        } else {
+            currentUser = null;
+            loggedOutView.classList.remove('hidden');
+            loggedInView.classList.add('hidden');
+            friendSection.classList.add('hidden');
+            blockSection.classList.add('hidden');
+        }
+    }
+
+    async function logout() {
+        await fetch('/auth/logout', { method: 'POST' });
+        currentUser = null;
+        window.location.reload();
+    }
+
+    async function getAuthCode() {
+        const display = document.getElementById('authCodeDisplay');
+        display.innerHTML = '코드를 생성 중입니다...';
+        const response = await fetch('/api/auth/code');
+        const result = await response.json();
+
+        if (response.ok) {
+            display.innerHTML = `생성된 인증 코드: <strong>${result.data}</strong><br>이 코드를 복사하여 로스트아크 자기소개에 붙여넣기 하세요.`;
+        } else {
+            display.innerHTML = `오류가 발생했습니다: ${result.responseMessage}`;
+        }
+    }
+
+    async function verifyStove() {
+        const stoveUrl = document.getElementById('stoveUrlInput').value;
+        const resultDisplay = document.getElementById('verificationResult');
+
+        if (!stoveUrl) {
+            resultDisplay.innerHTML = '프로필 URL을 입력해주세요.';
+            return;
+        }
+
+        resultDisplay.innerHTML = '인증을 진행 중입니다...';
+
+        const response = await fetch('/api/auth/verify', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ stoveUrl: stoveUrl })
+        });
+
+        const result = await response.json();
+
+        if (response.ok) {
+            resultDisplay.innerHTML = `✅ ${result.responseMessage}<br>대표 캐릭터 <strong>${result.data}</strong> 님이 확인되었습니다. 페이지를 새로고침합니다.`;
+            setTimeout(() => window.location.reload(), 2000);
+        } else {
+            resultDisplay.innerHTML = `❌ 오류: ${result.responseMessage || '알 수 없는 오류'}<br><small>${result.data || ''}</small>`;
+        }
+    }
+
+    // ... (friend and block functions are the same)
+    async function sendFriendRequest() {
+        const targetUserId = document.getElementById('friendRequestInput').value;
+        if (!targetUserId) {
+            alert('유저 ID를 입력하세요.');
+            return;
+        }
+        const response = await fetch('/api/friends/request', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ targetUserId: parseInt(targetUserId) })
+        });
+        alert(await response.text());
+        getFriends('REQUESTED');
+    }
+
+    async function getFriends(status) {
+        const response = await fetch(`/api/friends?status=${status}`);
+        const page = await response.json();
+        const friends = page.content;
+        const listElement = document.getElementById('friendList');
+        listElement.innerHTML = '';
+
+        if (friends.length === 0) {
+            listElement.innerHTML = '<li>목록이 비었습니다.</li>';
+            return;
+        }
+
+        friends.forEach(friend => {
+            const li = document.createElement('li');
+            let buttons = '';
+            if (status === 'PENDING') {
+                buttons = `
+                    <button onclick="acceptRequest(${friend.friendId})">수락</button>
+                    <button onclick="declineRequest(${friend.friendId})">거절</button>
+                `;
+            } else if (status === 'ACCEPTED') {
+                buttons = `<button onclick="deleteFriend(${friend.friendId})">삭제</button>`;
+            }
+
+            li.innerHTML = `
+                ${friend.otherNickname} (ID: ${friend.otherUserId}) - 상태: ${friend.status}
+                <div>${buttons}</div>
+            `;
+            listElement.appendChild(li);
+        });
+    }
+
+    async function acceptRequest(friendId) {
+        const response = await fetch(`/api/friends/requests/${friendId}/accept`, { method: 'POST' });
+        alert(await response.text());
+        getFriends('PENDING');
+    }
+
+    async function declineRequest(friendId) {
+        const response = await fetch(`/api/friends/requests/${friendId}/decline`, { method: 'POST' });
+        alert(await response.text());
+        getFriends('PENDING');
+    }
+
+    async function deleteFriend(friendId) {
+        const response = await fetch(`/api/friends/${friendId}`, { method: 'DELETE' });
+        alert(await response.text());
+        getFriends('ACCEPTED');
+    }
+
+    async function blockUser() {
+        const blockedUserId = document.getElementById('blockUserInput').value;
+        if (!blockedUserId) {
+            alert('차단할 유저 ID를 입력하세요.');
+            return;
+        }
+        const response = await fetch('/api/blocks', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ blockedUserId: parseInt(blockedUserId) })
+        });
+        alert(await response.text());
+    }
+
+    function getBlockedUsers() {
+        alert('차단 목록을 가져오는 API가 아직 확인되지 않았습니다.');
+    }
+</script>
+
+</body>
+</html>

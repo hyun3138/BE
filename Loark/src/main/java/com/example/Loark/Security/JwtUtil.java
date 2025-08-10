@@ -1,6 +1,7 @@
 package com.example.Loark.Security;
 
 import io.jsonwebtoken.*;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
 import java.util.Date;
@@ -8,24 +9,29 @@ import java.util.Date;
 @Component
 public class JwtUtil {
 
-    private final String secretKey = "skX2mS7gVbT0Pq9Fj3HsLwZy1NcRt8Ux"; // 환경변수로 바꾸기
-    private final long EXPIRATION = 1000 * 60 * 60;
+    @Value("${app.jwt.secret}")
+    private String secret;
 
-    public String createToken(String email) {
-        Date now = new Date();
+    @Value("${app.jwt.expiry-minutes:60}")
+    private long expiryMinutes;
+
+    public String createToken(Long userId) {
+        long now = System.currentTimeMillis();
+        Date iat = new Date(now);
+        Date exp = new Date(now + expiryMinutes * 60_000);
         return Jwts.builder()
-                .setSubject(email)
-                .setIssuedAt(now)
-                .setExpiration(new Date(now.getTime() + EXPIRATION))
-                .signWith(SignatureAlgorithm.HS256, secretKey.getBytes())
+                .setSubject(String.valueOf(userId))   // 주제: userId
+                .setIssuedAt(iat)
+                .setExpiration(exp)
+                .signWith(SignatureAlgorithm.HS256, secret.getBytes())
                 .compact();
     }
 
-    public String extractEmail(String token) {
-        return Jwts.parser()
-                .setSigningKey(secretKey.getBytes())
+    public Long parseUserId(String token) {
+        Claims c = Jwts.parser()
+                .setSigningKey(secret.getBytes())
                 .parseClaimsJws(token)
-                .getBody()
-                .getSubject();
+                .getBody();
+        return Long.valueOf(c.getSubject());
     }
 }
