@@ -1,3 +1,4 @@
+
 <!DOCTYPE html>
 <html lang="ko">
 <head>
@@ -11,10 +12,10 @@
         h3 { margin-top: 20px; }
         button { margin: 5px; }
         input[type="text"] { padding: 5px; margin-right: 10px; width: 300px; }
-        #userInfo, #friendList, #blockedList, #authCodeDisplay, #verificationResult { margin-top: 15px; }
+        #userInfo, #friendList, #blockedList, #authCodeDisplay, #verificationResult, #uploadResult { margin-top: 15px; }
         .hidden { display: none; }
         li { list-style-type: none; padding: 5px 0; border-bottom: 1px solid #eee; }
-        #authCodeDisplay, #verificationResult {
+        #authCodeDisplay, #verificationResult, #uploadResult {
             margin-top: 10px;
             padding: 10px;
             border: 1px solid #ddd;
@@ -22,6 +23,7 @@
             word-wrap: break-word;
         }
         #verified-status { color: green; font-weight: bold; }
+        #uploadResult img { max-width: 200px; margin: 5px; border: 1px solid #ccc; }
     </style>
 </head>
 <body>
@@ -66,6 +68,15 @@
         </div>
     </div>
 
+    <!-- 이미지 업로드 및 분석 섹션 -->
+    <div id="image-upload-section" class="section hidden">
+        <h2>레이드 기록 분석</h2>
+        <p>레이드 분석 스크린샷을 업로드하여 AI 분석을 요청합니다.</p>
+        <input type="file" id="imageUploadInput" multiple accept="image/*">
+        <button onclick="uploadAndAnalyzeImages()">업로드 및 분석</button>
+        <div id="uploadResult"></div>
+    </div>
+
     <div id="friend-section" class="section hidden">
         <h2>친구 관리</h2>
         <div>
@@ -105,6 +116,7 @@
 
         const loggedOutView = document.getElementById('auth-logged-out');
         const loggedInView = document.getElementById('auth-logged-in');
+        const imageUploadSection = document.getElementById('image-upload-section');
         const friendSection = document.getElementById('friend-section');
         const blockSection = document.getElementById('block-section');
 
@@ -112,8 +124,7 @@
             currentUser = data;
             loggedOutView.classList.add('hidden');
             loggedInView.classList.remove('hidden');
-            friendSection.classList.remove('hidden');
-            blockSection.classList.remove('hidden');
+            
             document.getElementById('userInfo').innerHTML = `
                 <p><strong>ID:</strong> ${data.userId}</p>
                 <p><strong>이름:</strong> ${data.displayName}</p>
@@ -125,12 +136,14 @@
             const verifiedStatus = document.getElementById('verified-status');
 
             if (data.mainCharacter) {
-                // 이미 인증된 경우
                 verificationProcess.classList.add('hidden');
                 verifiedStatus.classList.remove('hidden');
                 document.getElementById('mainCharacterDisplay').textContent = data.mainCharacter;
+                // 인증 완료 시에만 업로드, 친구, 차단 섹션 표시
+                imageUploadSection.classList.remove('hidden');
+                friendSection.classList.remove('hidden');
+                blockSection.classList.remove('hidden');
             } else {
-                // 아직 인증되지 않은 경우
                 verificationProcess.classList.remove('hidden');
                 verifiedStatus.classList.add('hidden');
             }
@@ -139,6 +152,7 @@
             currentUser = null;
             loggedOutView.classList.remove('hidden');
             loggedInView.classList.add('hidden');
+            imageUploadSection.classList.add('hidden');
             friendSection.classList.add('hidden');
             blockSection.classList.add('hidden');
         }
@@ -190,13 +204,52 @@
         }
     }
 
-    // ... (friend and block functions are the same)
-    async function sendFriendRequest() {
-        const targetUserId = document.getElementById('friendRequestInput').value;
-        if (!targetUserId) {
-            alert('유저 ID를 입력하세요.');
+    // 이미지 업로드 및 분석 요청 함수
+    async function uploadAndAnalyzeImages() {
+        const input = document.getElementById('imageUploadInput');
+        const files = input.files;
+        const resultDisplay = document.getElementById('uploadResult');
+
+        if (files.length === 0) {
+            resultDisplay.innerHTML = '업로드할 이미지를 선택해주세요.';
             return;
         }
+
+        const formData = new FormData();
+        for (const file of files) {
+            formData.append('files', file);
+        }
+
+        resultDisplay.innerHTML = '파일 업로드 후 AI 분석을 요청 중입니다... (시간이 걸릴 수 있습니다)';
+
+        try {
+            const response = await fetch('/api/images/upload', {
+                method: 'POST',
+                body: formData
+            });
+
+            const result = await response.json();
+
+            if (response.ok) {
+                resultDisplay.innerHTML = `
+                    <h3>✅ 분석 완료!</h3>
+                    <p>${result.message || '분석 결과가 S3에 저장되었습니다.'}</p>
+                    <p><strong>결과 파일 경로:</strong> ${result.s3_json_path || '경로 정보 없음'}</p>
+                `;
+            } else {
+                // FastAPI 등에서 온 상세 오류 메시지 표시
+                resultDisplay.innerHTML = `❌ 분석 실패: ${result.detail || result.error || '알 수 없는 오류'}`;
+            }
+        } catch (error) {
+            console.error('Upload/Analysis error:', error);
+            resultDisplay.innerHTML = '❌ 요청 처리 중 네트워크 오류가 발생했습니다.';
+        }
+    }
+
+    // --- (친구 및 차단 관련 함수는 이전과 동일) ---
+    async function sendFriendRequest() {
+        const targetUserId = document.getElementById('friendRequestInput').value;
+        if (!targetUserId) { alert('유저 ID를 입력하세요.'); return; }
         const response = await fetch('/api/friends/request', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -212,28 +265,19 @@
         const friends = page.content;
         const listElement = document.getElementById('friendList');
         listElement.innerHTML = '';
-
         if (friends.length === 0) {
             listElement.innerHTML = '<li>목록이 비었습니다.</li>';
             return;
         }
-
         friends.forEach(friend => {
             const li = document.createElement('li');
             let buttons = '';
             if (status === 'PENDING') {
-                buttons = `
-                    <button onclick="acceptRequest(${friend.friendId})">수락</button>
-                    <button onclick="declineRequest(${friend.friendId})">거절</button>
-                `;
+                buttons = `<button onclick="acceptRequest(${friend.friendId})">수락</button> <button onclick="declineRequest(${friend.friendId})">거절</button>`;
             } else if (status === 'ACCEPTED') {
                 buttons = `<button onclick="deleteFriend(${friend.friendId})">삭제</button>`;
             }
-
-            li.innerHTML = `
-                ${friend.otherNickname} (ID: ${friend.otherUserId}) - 상태: ${friend.status}
-                <div>${buttons}</div>
-            `;
+            li.innerHTML = `${friend.otherNickname} (ID: ${friend.otherUserId}) - 상태: ${friend.status} <div>${buttons}</div>`;
             listElement.appendChild(li);
         });
     }
@@ -258,10 +302,7 @@
 
     async function blockUser() {
         const blockedUserId = document.getElementById('blockUserInput').value;
-        if (!blockedUserId) {
-            alert('차단할 유저 ID를 입력하세요.');
-            return;
-        }
+        if (!blockedUserId) { alert('차단할 유저 ID를 입력하세요.'); return; }
         const response = await fetch('/api/blocks', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -273,6 +314,7 @@
     function getBlockedUsers() {
         alert('차단 목록을 가져오는 API가 아직 확인되지 않았습니다.');
     }
+
 </script>
 
 </body>
