@@ -31,9 +31,9 @@ public class FriendServiceTest {
     @BeforeEach
     void setUp() {
         aId = 1L; bId = 2L; cId = 3L;
-        A = User.builder().userId(aId).userNickname("A").build();
-        B = User.builder().userId(bId).userNickname("B").build();
-        C = User.builder().userId(cId).userNickname("C").build();
+//        A = User.builder().userId(aId).userNickname("A").build();
+//        B = User.builder().userId(bId).userNickname("B").build();
+//        C = User.builder().userId(cId).userNickname("C").build();
     }
 
     @Test
