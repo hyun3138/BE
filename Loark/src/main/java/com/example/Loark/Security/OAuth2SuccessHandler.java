@@ -61,6 +61,7 @@ public class OAuth2SuccessHandler implements org.springframework.security.web.au
                         .userEmail(email)
                         .displayName(name)
                         .pictureUrl(picture)
+                        .userPassword("social_login") // 소셜 로그인 사용자는 비밀번호 없으므로 임의값 지정
                         .lastLoginAt(now)
                         .build());
 

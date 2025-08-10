@@ -1,5 +1,6 @@
 package com.example.Loark.Entity;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import jakarta.persistence.*;
 import lombok.*;
 import java.time.LocalDateTime;
@@ -37,6 +38,17 @@ public class User {
 
     @Column(name = "stove_profile_url", length = 2000)
     private String stoveProfileUrl;
+
+    // For LostArk auth verification
+    @Column(name = "auth_code")
+    private String authCode; // 인증 코드
+
+    @Column(name = "stove_member_no")
+    private String stoveMemberNo; // 스토브 회원 번호
+
+    @JsonIgnore
+    @Column(name = "user_password", nullable = true)
+    private String userPassword;
 
     // ✅ 생성 시 자동 입력 + 수정 불가
     @CreationTimestamp
