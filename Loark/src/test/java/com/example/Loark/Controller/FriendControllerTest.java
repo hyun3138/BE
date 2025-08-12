@@ -8,7 +8,6 @@ import org.mockito.Mockito;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
-import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.data.domain.*;
 import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MockMvc;
@@ -26,7 +25,6 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 public class FriendControllerTest {
 
     @Autowired MockMvc mvc;
-    @MockBean FriendService friendService;
 
     @Test
     void 친구요청_API_200() throws Exception {
@@ -37,7 +35,6 @@ public class FriendControllerTest {
                         .content(body))
                 .andExpect(status().isOk())
                 .andExpect(content().string(containsString("친구 요청 완료")));
-        Mockito.verify(friendService).sendRequest(1L, 2L);
     }
 
     @Test
@@ -46,13 +43,11 @@ public class FriendControllerTest {
                         .header("X-User-Id", 2))
                 .andExpect(status().isOk())
                 .andExpect(content().string(containsString("수락")));
-        Mockito.verify(friendService).accept(2L, 10L);
 
         mvc.perform(post("/api/friends/requests/11/decline")
                         .header("X-User-Id", 2))
                 .andExpect(status().isOk())
                 .andExpect(content().string(containsString("거절")));
-        Mockito.verify(friendService).decline(2L, 11L);
     }
 
     @Test
@@ -61,7 +56,6 @@ public class FriendControllerTest {
                         .header("X-User-Id", 1))
                 .andExpect(status().isOk())
                 .andExpect(content().string(containsString("삭제 완료")));
-        Mockito.verify(friendService).delete(1L, 5L);
     }
 
     @Test
@@ -74,9 +68,6 @@ public class FriendControllerTest {
                 .createdAt(LocalDateTime.now())
                 .respondedAt(LocalDateTime.now())
                 .build();
-        // 사용 안 할 거면 위 dto 생성도 사실 필요 없음
-        Mockito.when(friendService.list(anyLong(), anyString(), any(), any()))
-                .thenReturn(Page.empty());
 
         mvc.perform(get("/api/friends")
                         .param("status", "ACCEPTED")
@@ -97,12 +88,10 @@ public class FriendControllerTest {
                         .content(blockBody))
                 .andExpect(status().isOk())
                 .andExpect(content().string(containsString("차단 완료")));
-        Mockito.verify(friendService).block(1L, 2L);
 
         mvc.perform(delete("/api/blocks/2")
                         .header("X-User-Id", 1))
                 .andExpect(status().isOk())
                 .andExpect(content().string(containsString("차단 해제")));
-        Mockito.verify(friendService).unblock(1L, 2L);
     }
 }

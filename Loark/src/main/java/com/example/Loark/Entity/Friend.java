@@ -4,6 +4,7 @@ import jakarta.persistence.*;
 import lombok.*;
 
 import java.time.LocalDateTime;
+import java.time.OffsetDateTime;
 
 @Entity
 @Table(name = "friends")
