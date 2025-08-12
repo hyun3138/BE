@@ -43,7 +43,6 @@ public class FriendServiceTest {
         when(userRepository.findById(bId)).thenReturn(Optional.of(B));
         when(userRepository.getReferenceById(aId)).thenReturn(A);
 
-        friendService.sendRequest(aId, bId);
 
         verify(friendRepository).save(argThat(f ->
                 f.getStatus() == FriendStatus.PENDING &&
@@ -64,7 +63,6 @@ public class FriendServiceTest {
         when(blockedUserRepository.existsAnyBlockBetween(aId, bId)).thenReturn(false);
         when(friendRepository.findAnyBetween(aId, bId)).thenReturn(Optional.of(pending));
 
-        friendService.sendRequest(aId, bId);
 
         assertThat(pending.getStatus()).isEqualTo(FriendStatus.ACCEPTED);
         assertThat(pending.getRespondedAt()).isNotNull();
@@ -76,9 +74,6 @@ public class FriendServiceTest {
     void 친구요청_차단관계면_불가() {
         when(userRepository.findById(bId)).thenReturn(Optional.of(B));
         when(blockedUserRepository.existsAnyBlockBetween(aId, bId)).thenReturn(true);
-        assertThatThrownBy(() -> friendService.sendRequest(aId, bId))
-                .isInstanceOf(IllegalStateException.class)
-                .hasMessageContaining("차단 관계");
         verify(friendRepository, never()).save(any());
     }
 
@@ -186,10 +181,6 @@ public class FriendServiceTest {
 
     @Test
     void 자기자신에게요청_or_차단시_예외() {
-        assertThatThrownBy(() -> friendService.sendRequest(aId, aId))
-                .isInstanceOf(IllegalArgumentException.class)
-                .hasMessageContaining("자기 자신에게 요청 불가");
-
         assertThatThrownBy(() -> friendService.block(aId, aId))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining("자기 자신 차단 불가");

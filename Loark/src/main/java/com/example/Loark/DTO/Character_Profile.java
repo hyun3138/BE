@@ -28,8 +28,8 @@ public class Character_Profile {
 
     @JsonProperty("CombatPower")
     private String CombatPower;
-
-//    // 이건 db에 저장 안되는데 뭔지 질문하기
+    
+    // db에 저장 안하고 값만 뿌릴 수 있음
 //    private List<Stat> Stats;
 //    @Data public static class Stat {
 //        private String Type;   // "치명" 등

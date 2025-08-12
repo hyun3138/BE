@@ -3,6 +3,7 @@ package com.example.Loark.Controller;
 import com.example.Loark.DTO.BlockRequest;
 import com.example.Loark.DTO.FriendRequest;
 import com.example.Loark.DTO.FriendResponse;
+import com.example.Loark.Entity.Friend_Memo;
 import com.example.Loark.Entity.User;
 import com.example.Loark.Service.FriendService;
 import com.example.Loark.Entity.Friend;
@@ -29,9 +30,8 @@ public class FriendController {
             @RequestBody FriendRequest req,
             @AuthenticationPrincipal User me
     ) {
-        // (선택) 방어 코드
         if (me == null) return ResponseEntity.status(401).body("인증 필요");
-        friendService.sendRequest(me.getUserId(), req.getTargetUserId());
+        friendService.sendRequest(me.getUserId(), req.getTargetMainCharacter());
         return ResponseEntity.ok("친구 요청 완료");
     }
 
@@ -63,6 +63,16 @@ public class FriendController {
         if (me == null) return ResponseEntity.status(401).body("인증 필요");
         friendService.delete(me.getUserId(), friendId);
         return ResponseEntity.ok("친구 삭제 완료");
+    }
+
+    @PostMapping("/friends/requests/{friendId}/cancel")
+    public ResponseEntity<String> cancel(
+            @PathVariable Long friendId,
+            @AuthenticationPrincipal User me
+    ) {
+        if (me == null) return ResponseEntity.status(401).body("인증 필요");
+        friendService.cancel(me.getUserId(), friendId);
+        return ResponseEntity.ok("친구 요청 취소 완료");
     }
 
     @GetMapping("/friends")
@@ -100,17 +110,48 @@ public class FriendController {
         friendService.unblock(me.getUserId(), blockedUserId);
         return ResponseEntity.ok("차단 해제 완료");
     }
+    // ✅ 메모 수정 (내 메모만 갱신)
+    @PatchMapping("/friends/{friendId}/memo")
+    public ResponseEntity<String> updateMemo(
+            @PathVariable Long friendId,
+            @RequestBody Map<String, String> body,
+            @AuthenticationPrincipal User me
+    ) {
+        if (me == null) return ResponseEntity.status(401).body("인증 필요");
+        String memo = body.getOrDefault("memo", null);
+        friendService.updateMemo(me.getUserId(), friendId, memo);
+        return ResponseEntity.ok("메모가 저장되었습니다.");
+    }
 
+    // ✅ 메모 삭제 (내 메모만 삭제)
+    @DeleteMapping("/friends/{friendId}/memo")
+    public ResponseEntity<String> clearMemo(
+            @PathVariable Long friendId,
+            @AuthenticationPrincipal User me
+    ) {
+        if (me == null) return ResponseEntity.status(401).body("인증 필요");
+        friendService.clearMemo(me.getUserId(), friendId);
+        return ResponseEntity.ok("메모가 삭제되었습니다.");
+    }
+
+    // ✅ 목록 응답에 “내 메모”를 실어 주기 위한 매핑 보정
     private FriendResponse toDto(Friend f, Long me) {
         boolean iAmRequester = f.getRequester().getUserId().equals(me);
         var other = iAmRequester ? f.getTarget() : f.getRequester();
+
+        // 내 메모만 조회해서 DTO에 채움
+        Friend_Memo myMemo = friendService.findMyMemo(me, f.getFriendId());
+
         return FriendResponse.builder()
                 .friendId(f.getFriendId())
                 .otherUserId(other.getUserId())
-                .otherNickname(other.getDisplayName()) // 🔁 displayName으로 교체
+                .otherNickname(other.getDisplayName())
                 .status(f.getStatus())
                 .createdAt(f.getCreatedAt())
                 .respondedAt(f.getRespondedAt())
+                // DTO 스키마는 유지하고, 값은 내 메모로 대체
+                .friendMemo(myMemo != null ? myMemo.getMemoText() : null)
+                .friendMemoUpdatedAt(myMemo != null ? myMemo.getUpdatedAt().atOffset(java.time.ZoneOffset.systemDefault().getRules().getOffset(myMemo.getUpdatedAt())) : null)
                 .build();
     }
 
