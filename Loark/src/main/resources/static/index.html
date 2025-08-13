@@ -71,7 +71,14 @@
     <!-- 이미지 업로드 및 분석 섹션 -->
     <div id="image-upload-section" class="section hidden">
         <h2>레이드 기록 분석</h2>
-        <p>레이드 분석 스크린샷을 업로드하여 AI 분석을 요청합니다.</p>
+        <p>분석을 원하는 캐릭터를 선택하고, 레이드 분석 스크린샷을 업로드하여 AI 분석을 요청합니다.</p>
+
+        <!-- 캐릭터 선택 드롭다운 -->
+        <div id="character-selection-container" style="margin-bottom: 15px;">
+             <label for="characterSelect" style="margin-right: 10px;"><strong>캐릭터 선택:</strong></label>
+             <select id="characterSelect" name="characterSelect" style="padding: 5px; min-width: 200px;"></select>
+        </div>
+
         <input type="file" id="imageUploadInput" multiple accept="image/*">
         <button onclick="uploadAndAnalyzeImages()">업로드 및 분석</button>
         <div id="uploadResult"></div>
@@ -143,6 +150,10 @@
                 imageUploadSection.classList.remove('hidden');
                 friendSection.classList.remove('hidden');
                 blockSection.classList.remove('hidden');
+
+                // 로그인한 유저의 캐릭터 목록 불러오기
+                loadUserCharacters();
+
             } else {
                 verificationProcess.classList.remove('hidden');
                 verifiedStatus.classList.add('hidden');
@@ -204,11 +215,48 @@
         }
     }
 
+    // 사용자의 캐릭터 목록을 불러와 드롭다운에 채우는 함수
+    async function loadUserCharacters() {
+        const select = document.getElementById('characterSelect');
+        try {
+            // 백엔드에 캐릭터 목록을 요청하는 API. 경로는 /api/characters로 가정합니다.
+            const response = await fetch('/api/characters/list');
+            if (!response.ok) {
+                throw new Error(`HTTP error! status: ${response.status}`);
+            }
+            const characters = await response.json();
+            
+            select.innerHTML = ''; // 기존 옵션 초기화
+
+            if (characters && characters.length > 0) {
+                characters.forEach(character => {
+                    const option = document.createElement('option');
+                    // API 응답에 characterName, characterClassName, itemAvgLevel 필드가 있다고 가정합니다.
+                    option.value = character.name;
+                    option.textContent = `${character.name} (${character.clazz} / ${character.itemLevel} / ${character.combatPower})`;
+                    select.appendChild(option);
+                });
+            } else {
+                select.innerHTML = '<option value="">보유한 캐릭터가 없습니다.</option>';
+            }
+        } catch (error) {
+            console.error('캐릭터 목록 로딩 오류:', error);
+            select.innerHTML = '<option value="">캐릭터를 불러올 수 없습니다.</option>';
+        }
+    }
+
     // 이미지 업로드 및 분석 요청 함수
     async function uploadAndAnalyzeImages() {
         const input = document.getElementById('imageUploadInput');
         const files = input.files;
         const resultDisplay = document.getElementById('uploadResult');
+        const characterSelect = document.getElementById('characterSelect');
+        const selectedCharacter = characterSelect.value;
+
+        if (!selectedCharacter) {
+            resultDisplay.innerHTML = '분석할 캐릭터를 선택해주세요.';
+            return;
+        }
 
         if (files.length === 0) {
             resultDisplay.innerHTML = '업로드할 이미지를 선택해주세요.';
@@ -216,11 +264,13 @@
         }
 
         const formData = new FormData();
+        // 선택된 캐릭터 이름을 같이 보냅니다.
+        formData.append('characterName', selectedCharacter);
         for (const file of files) {
             formData.append('files', file);
         }
 
-        resultDisplay.innerHTML = '파일 업로드 후 AI 분석을 요청 중입니다... (시간이 걸릴 수 있습니다)';
+        resultDisplay.innerHTML = `[${selectedCharacter}] 캐릭터의 파일을 업로드하고 AI 분석을 요청합니다...`;
 
         try {
             const response = await fetch('/api/images/upload', {
