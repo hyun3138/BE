@@ -3,6 +3,7 @@ package com.example.Loark.Controller;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import io.swagger.v3.oas.annotations.Hidden;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.ControllerAdvice;
 import org.springframework.web.bind.annotation.ExceptionHandler;
@@ -13,6 +14,7 @@ import java.util.Map;
 /**
  * 애플리케이션 전역에서 발생하는 예외를 처리하는 클래스
  */
+@Hidden // springdoc이 이 클래스를 스캔하지 않도록 제외합니다.
 @ControllerAdvice
 public class GlobalExceptionHandler {
 

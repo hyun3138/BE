@@ -98,9 +98,10 @@ public class S3UploadService {
             }
 
             // 파일명 생성 규칙: 캐릭터이름_직업_아이템레벨_전투력_타임스탬프_인덱스.확장자
-            String fileName = String.format("%s_%s_%s_%s_%s_%d%s",
+            String fileName = String.format("%s_%s_%s_%s_%s_%s_%d%s",
                     characterInfo.getName(),
                     characterInfo.getClazz(),
+                    characterInfo.getArkPassive(),
                     characterInfo.getItemLevel(),
                     characterInfo.getCombatPower(),
                     uploadTimestamp,
