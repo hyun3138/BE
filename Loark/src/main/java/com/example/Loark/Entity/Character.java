@@ -50,4 +50,7 @@ public class Character {
 
     @PrePersist @PreUpdate
     void touch() { if (updatedAt == null) updatedAt = LocalDateTime.now(); else updatedAt = LocalDateTime.now(); }
+
+    @Column(name="character_ark_passive", length=50)
+    private String arkPassive;  // nullable 허용
 }

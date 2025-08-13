@@ -23,52 +23,69 @@ public class CharacterController {
     private final CharacterService characterService;
     private final LostarkApiClient lostarkApi;
 
-    /** 대표 캐릭터 저장(본인캐릭터 인증 버튼) */
+    /** ✅ 대표 캐릭터 저장(= 인증 버튼): 이제 원정대 전체 저장 + arkpassive 포함 */
     @PostMapping("/save-main")
     @Transactional
     public ResponseEntity<?> saveMain(@AuthenticationPrincipal User me,
                                       @RequestParam(required = false) String apiKeyOpt) {
+
         if (me == null) return ResponseEntity.status(401).body("인증 필요");
-        String apiKey = apiKeyOpt != null ? apiKeyOpt : me.getUserApiKey();
+        String apiKey = (apiKeyOpt != null) ? apiKeyOpt : me.getUserApiKey();
         if (apiKey == null || apiKey.isBlank()) return ResponseEntity.badRequest().body("API Key가 필요합니다.");
         if (me.getMainCharacter() == null || me.getMainCharacter().isBlank())
             return ResponseEntity.badRequest().body("대표 캐릭터가 설정되어 있지 않습니다. 스토브 인증을 먼저 완료하세요.");
 
-        // 존재 검증(선택) + 저장
+        // 1) 대표 캐릭터 실존 확인은 유지
         if (!lostarkApi.existsCharacter(apiKey, me.getMainCharacter()))
             return ResponseEntity.badRequest().body("대표 캐릭터를 찾을 수 없습니다. 닉네임/API Key를 확인하세요.");
 
-        var saved = characterService.upsertFromProfile(me, me.getMainCharacter(), true);
+        // 2) 원정대 목록 불러오기
+        var siblings = lostarkApi.fetchSiblings(apiKey, me.getMainCharacter());
+        // fetchSiblings가 비면 최소 대표만 저장하도록 fallback
+        if (siblings == null || siblings.isEmpty()) {
+            var saved = characterService.upsertFromProfileWithArkPassive(me, me.getMainCharacter(), true);
+            // 기존 main 토글 유지
+            characterRepo.findByUserAndMainTrue(me).ifPresent(prev -> {
+                if (!prev.getName().equalsIgnoreCase(saved.getName())) {
+                    prev.setMain(false);
+                    characterRepo.save(prev);
+                }
+            });
+            return ResponseEntity.ok("대표 캐릭터만 저장 완료: " + saved.getName());
+        }
 
-        // 기존 main 해제 로직은 service 내부 또는 여기서 토글
+        // 3) 원정대 전체 저장 (프로필 + 아크패시브)
+        int savedCount = 0;
+        String main = me.getMainCharacter();
+        for (var sib : siblings) {
+            String name = sib.getCharacterName(); // DTO: LoaSiblings.characterName
+            boolean isMain = main.equalsIgnoreCase(name);
+            characterService.upsertFromProfileWithArkPassive(me, name, isMain);
+            savedCount++;
+        }
+
+        // 대표 토글 재확인(방어)
         characterRepo.findByUserAndMainTrue(me).ifPresent(prev -> {
-            if (!prev.getName().equalsIgnoreCase(saved.getName())) {
+            if (!prev.getName().equalsIgnoreCase(main)) {
                 prev.setMain(false);
                 characterRepo.save(prev);
             }
         });
-        return ResponseEntity.ok("대표 캐릭터 저장 완료: " + saved.getName());
+        // 대표 이름이 저장되지 않았다면 대표를 강제 토글
+        characterRepo.findByUserAndName(me, main).ifPresentOrElse(ch -> {
+            if (!ch.isMain()) {
+                characterRepo.findByUserAndMainTrue(me).ifPresent(prev -> { prev.setMain(false); characterRepo.save(prev); });
+                ch.setMain(true);
+                characterRepo.save(ch);
+            }
+        }, () -> {
+            // 혹시 siblings 응답에 대표가 누락되면 직접 저장
+            characterService.upsertFromProfileWithArkPassive(me, main, true);
+        });
+
+        return ResponseEntity.ok("원정대 전체 저장 완료 (" + savedCount + "명). 대표: " + main);
     }
 
-    /** 다른 캐릭터 추가(같은 원정대 검증) */
-    @PostMapping("/save-other")
-    @Transactional
-    public ResponseEntity<?> saveOther(@AuthenticationPrincipal User me,
-                                       @RequestParam String name,
-                                       @RequestParam(required = false) String apiKeyOpt) {
-        if (me == null) return ResponseEntity.status(401).body("인증 필요");
-        String apiKey = apiKeyOpt != null ? apiKeyOpt : me.getUserApiKey();
-        if (apiKey == null || apiKey.isBlank()) return ResponseEntity.badRequest().body("API Key가 필요합니다.");
-        if (me.getMainCharacter() == null || me.getMainCharacter().isBlank())
-            return ResponseEntity.badRequest().body("대표 캐릭터가 설정되어 있지 않습니다. 먼저 본인캐릭터 인증을 완료하세요.");
-
-        // 같은 원정대인지 siblings로 검증
-        boolean same = lostarkApi.areSameExpedition(apiKey, me.getMainCharacter(), name);
-        if (!same) return ResponseEntity.badRequest().body("같은 원정대 캐릭터가 아닙니다.");
-
-        var saved = characterService.upsertFromProfile(me, name, false);
-        return ResponseEntity.ok("캐릭터 추가 완료: " + saved.getName());
-    }
 
     /** 대표 토글만 따로 필요하면(선택) */
     @PostMapping("/toggle-main")
@@ -95,33 +112,6 @@ public class CharacterController {
         return ResponseEntity.ok("대표 캐릭터 변경 완료: " + name);
     }
 
-    // 로그인 한 유저의 대표 캐릭터 기준으로
-    @GetMapping("/siblings")
-    public ResponseEntity<?> mySiblings(@AuthenticationPrincipal User me) {
-        if (me == null) return ResponseEntity.status(401).body("인증 필요");
-        if (me.getUserApiKey() == null || me.getUserApiKey().isBlank())
-            return ResponseEntity.badRequest().body("API Key가 필요합니다.");
-        if (me.getMainCharacter() == null || me.getMainCharacter().isBlank())
-            return ResponseEntity.badRequest().body("대표 캐릭터가 설정되어 있지 않습니다.");
-
-        var list = lostarkApi.fetchSiblings(me.getUserApiKey(), me.getMainCharacter());
-        return ResponseEntity.ok(list); // 그대로 프록시
-    }
-    
-    // 임의의 캐릭터 명으로 조회
-    @GetMapping("/{characterName}/siblings")
-    public ResponseEntity<?> siblingsByName(@AuthenticationPrincipal User me,
-                                            @PathVariable String characterName,
-                                            @RequestParam(required = false) String apiKeyOpt) {
-        if (me == null) return ResponseEntity.status(401).body("인증 필요");
-        String apiKey = (apiKeyOpt != null && !apiKeyOpt.isBlank()) ? apiKeyOpt : me.getUserApiKey();
-        if (apiKey == null || apiKey.isBlank())
-            return ResponseEntity.badRequest().body("API Key가 필요합니다.");
-
-        var list = lostarkApi.fetchSiblings(apiKey, characterName);
-        return ResponseEntity.ok(list);
-    }
-
     /** ✅ 현재 로그인 유저의 캐릭터 전부 반환 */
     @GetMapping("/list")
     public ResponseEntity<?> getMyCharacters(@AuthenticationPrincipal User me) {
@@ -134,4 +124,6 @@ public class CharacterController {
 
         return ResponseEntity.ok(list);
     }
+    
+    // 사용자의 모든 캐릭터 정보 간단하게 반환
 }
