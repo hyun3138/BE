@@ -1,4 +1,3 @@
-
 <!DOCTYPE html>
 <html lang="ko">
 <head>
@@ -24,6 +23,7 @@
         }
         #verified-status { color: green; font-weight: bold; }
         #uploadResult img { max-width: 200px; margin: 5px; border: 1px solid #ccc; }
+        .error-message { color: red; }
     </style>
 </head>
 <body>
@@ -41,7 +41,6 @@
             <button onclick="logout()">로그아웃</button>
             <hr>
             <h3>로스트아크 계정 인증</h3>
-
             <div id="stove-verification-process">
                 <div id="get-code-step">
                     <p><b>1단계: 인증 코드 발급</b></p>
@@ -51,7 +50,6 @@
                     <div id="authCodeDisplay"></div>
                 </div>
                 <hr>
-
                 <div id="verify-step">
                     <p><b>2단계: 인증 완료하기</b></p>
                     <p>자기소개를 업데이트한 후, 본인의 프로필 URL을 아래에 붙여넣고 인증 버튼을 누르세요.</p>
@@ -60,7 +58,6 @@
                     <div id="verificationResult"></div>
                 </div>
             </div>
-
             <div id="verified-status" class="hidden">
                 <p>✅ 로스트아크 계정 인증 완료!</p>
                 <p>대표 캐릭터: <strong id="mainCharacterDisplay"></strong></p>
@@ -68,15 +65,13 @@
         </div>
     </div>
 
-    <!-- 이미지 업로드 및 분석 섹션 -->
     <div id="image-upload-section" class="section hidden">
-        <h2>레이드 기록 분석</h2>
-        <p>분석을 원하는 캐릭터를 선택하고, 레이드 분석 스크린샷을 업로드하여 AI 분석을 요청합니다.</p>
+        <h2>레이드 기록 분석 (Naver Clova OCR)</h2>
+        <p>분석을 원하는 캐릭터를 선택하고, 레이드 '종합템플릿' 스크린샷을 업로드하여 AI 분석을 요청합니다.</p>
 
-        <!-- 캐릭터 선택 드롭다운 -->
         <div id="character-selection-container" style="margin-bottom: 15px;">
-             <label for="characterSelect" style="margin-right: 10px;"><strong>캐릭터 선택:</strong></label>
-             <select id="characterSelect" name="characterSelect" style="padding: 5px; min-width: 200px;"></select>
+            <label for="characterSelect" style="margin-right: 10px;"><strong>캐릭터 선택:</strong></label>
+            <select id="characterSelect" name="characterSelect" style="padding: 5px; min-width: 200px;"></select>
         </div>
 
         <input type="file" id="imageUploadInput" multiple accept="image/*">
@@ -115,58 +110,74 @@
 <script>
     let currentUser = null;
 
-    window.onload = checkAuth;
+    window.onload = () => checkAuth();
 
-    async function checkAuth() {
-        const response = await fetch('/auth/me');
-        const data = await response.json();
+    async function checkAuth(retries = 3) {
+        try {
+            const response = await fetch('/auth/me');
+            if (!response.ok) throw new Error('Network response was not ok');
+            const data = await response.json();
 
-        const loggedOutView = document.getElementById('auth-logged-out');
-        const loggedInView = document.getElementById('auth-logged-in');
+            if (data.authenticated) {
+                updateUIForLoggedIn(data);
+            } else if (retries > 0) {
+                setTimeout(() => checkAuth(retries - 1), 300);
+            } else {
+                updateUIForLoggedOut();
+            }
+        } catch (error) {
+            console.error("Error during auth check:", error);
+            if (retries > 0) {
+                setTimeout(() => checkAuth(retries - 1), 300);
+            } else {
+                updateUIForLoggedOut();
+            }
+        }
+    }
+
+    function updateUIForLoggedIn(data) {
+        currentUser = data;
+        document.getElementById('auth-logged-out').classList.add('hidden');
+        document.getElementById('auth-logged-in').classList.remove('hidden');
+
+        document.getElementById('userInfo').innerHTML = `
+            <p><strong>ID:</strong> ${data.userId}</p>
+            <p><strong>이름:</strong> ${data.displayName}</p>
+            <p><strong>이메일:</strong> ${data.email}</p>
+            <img src="${data.pictureUrl}" alt="Profile Picture" width="50">
+        `;
+
+        const verificationProcess = document.getElementById('stove-verification-process');
+        const verifiedStatus = document.getElementById('verified-status');
         const imageUploadSection = document.getElementById('image-upload-section');
         const friendSection = document.getElementById('friend-section');
         const blockSection = document.getElementById('block-section');
 
-        if (data.authenticated) {
-            currentUser = data;
-            loggedOutView.classList.add('hidden');
-            loggedInView.classList.remove('hidden');
-            
-            document.getElementById('userInfo').innerHTML = `
-                <p><strong>ID:</strong> ${data.userId}</p>
-                <p><strong>이름:</strong> ${data.displayName}</p>
-                <p><strong>이메일:</strong> ${data.email}</p>
-                <img src="${data.pictureUrl}" alt="Profile Picture" width="50">
-            `;
+        if (data.mainCharacter) {
+            verificationProcess.classList.add('hidden');
+            verifiedStatus.classList.remove('hidden');
+            document.getElementById('mainCharacterDisplay').textContent = data.mainCharacter;
+            imageUploadSection.classList.remove('hidden');
+            friendSection.classList.remove('hidden');
+            blockSection.classList.remove('hidden');
 
-            const verificationProcess = document.getElementById('stove-verification-process');
-            const verifiedStatus = document.getElementById('verified-status');
-
-            if (data.mainCharacter) {
-                verificationProcess.classList.add('hidden');
-                verifiedStatus.classList.remove('hidden');
-                document.getElementById('mainCharacterDisplay').textContent = data.mainCharacter;
-                // 인증 완료 시에만 업로드, 친구, 차단 섹션 표시
-                imageUploadSection.classList.remove('hidden');
-                friendSection.classList.remove('hidden');
-                blockSection.classList.remove('hidden');
-
-                // 로그인한 유저의 캐릭터 목록 불러오기
-                loadUserCharacters();
-
-            } else {
-                verificationProcess.classList.remove('hidden');
-                verifiedStatus.classList.add('hidden');
-            }
-
+            loadUserCharacters();
         } else {
-            currentUser = null;
-            loggedOutView.classList.remove('hidden');
-            loggedInView.classList.add('hidden');
+            verificationProcess.classList.remove('hidden');
+            verifiedStatus.classList.add('hidden');
             imageUploadSection.classList.add('hidden');
             friendSection.classList.add('hidden');
             blockSection.classList.add('hidden');
         }
+    }
+
+    function updateUIForLoggedOut() {
+        currentUser = null;
+        document.getElementById('auth-logged-out').classList.remove('hidden');
+        document.getElementById('auth-logged-in').classList.add('hidden');
+        document.getElementById('image-upload-section').classList.add('hidden');
+        document.getElementById('friend-section').classList.add('hidden');
+        document.getElementById('block-section').classList.add('hidden');
     }
 
     async function logout() {
@@ -215,25 +226,24 @@
         }
     }
 
-    // 사용자의 캐릭터 목록을 불러와 드롭다운에 채우는 함수
     async function loadUserCharacters() {
         const select = document.getElementById('characterSelect');
         try {
-            // 백엔드에 캐릭터 목록을 요청하는 API. 경로는 /api/characters로 가정합니다.
             const response = await fetch('/api/characters/list');
             if (!response.ok) {
                 throw new Error(`HTTP error! status: ${response.status}`);
             }
             const characters = await response.json();
-            
-            select.innerHTML = ''; // 기존 옵션 초기화
+
+            select.innerHTML = '';
 
             if (characters && characters.length > 0) {
                 characters.forEach(character => {
                     const option = document.createElement('option');
-                    // API 응답에 characterName, characterClassName, itemAvgLevel 필드가 있다고 가정합니다.
-                    option.value = character.name;
-                    option.textContent = `${character.name} (${character.clazz} / ${character.itemLevel} / ${character.combatPower})`;
+                    // 상세 정보를 모두 value와 textContent에 담습니다.
+                    const fullCharacterInfo = `${character.name}_(${character.clazz} / ${character.arkPassive} / ${character.itemLevel} / ${character.combatPower})`;
+                    option.value = fullCharacterInfo;
+                    option.textContent = fullCharacterInfo;
                     select.appendChild(option);
                 });
             } else {
@@ -245,32 +255,31 @@
         }
     }
 
-    // 이미지 업로드 및 분석 요청 함수
     async function uploadAndAnalyzeImages() {
         const input = document.getElementById('imageUploadInput');
         const files = input.files;
         const resultDisplay = document.getElementById('uploadResult');
         const characterSelect = document.getElementById('characterSelect');
-        const selectedCharacter = characterSelect.value;
+        const selectedCharacterInfo = characterSelect.value; // 상세 정보가 담긴 값 가져오기
 
-        if (!selectedCharacter) {
-            resultDisplay.innerHTML = '분석할 캐릭터를 선택해주세요.';
+        if (!selectedCharacterInfo) {
+            resultDisplay.innerHTML = '<p class="error-message">분석할 캐릭터를 선택해주세요.</p>';
             return;
         }
 
         if (files.length === 0) {
-            resultDisplay.innerHTML = '업로드할 이미지를 선택해주세요.';
+            resultDisplay.innerHTML = '<p class="error-message">업로드할 이미지를 선택해주세요.</p>';
             return;
         }
 
         const formData = new FormData();
-        // 선택된 캐릭터 이름을 같이 보냅니다.
-        formData.append('characterName', selectedCharacter);
+        // characterName 파라미터로 선택된 캐릭터의 상세 정보를 보냅니다.
+        formData.append('characterName', selectedCharacterInfo);
         for (const file of files) {
             formData.append('files', file);
         }
 
-        resultDisplay.innerHTML = `[${selectedCharacter}] 캐릭터의 파일을 업로드하고 AI 분석을 요청합니다...`;
+        resultDisplay.innerHTML = `[${selectedCharacterInfo}] 캐릭터의 파일을 업로드하고 AI 분석을 요청합니다...`;
 
         try {
             const response = await fetch('/api/images/upload', {
@@ -281,22 +290,31 @@
             const result = await response.json();
 
             if (response.ok) {
-                resultDisplay.innerHTML = `
-                    <h3>✅ 분석 완료!</h3>
-                    <p>${result.message || '분석 결과가 S3에 저장되었습니다.'}</p>
-                    <p><strong>결과 파일 경로:</strong> ${result.s3_json_path || '경로 정보 없음'}</p>
-                `;
+                let html = `<h3>${result.message}</h3>`;
+                if (result.success_files && result.success_files.length > 0) {
+                    html += '<h4>✅ 추출 성공</h4><ul>';
+                    result.success_files.forEach(f => {
+                        html += `<li>${f.original_filename}</li>`;
+                    });
+                    html += '</ul>';
+                }
+                if (result.error_files && result.error_files.length > 0) {
+                    html += '<h4 class="error-message">❌ 실패</h4><ul>';
+                    result.error_files.forEach(f => {
+                        html += `<li class="error-message">${f.filename}: ${f.error}</li>`;
+                    });
+                    html += '</ul>';
+                }
+                resultDisplay.innerHTML = html;
             } else {
-                // FastAPI 등에서 온 상세 오류 메시지 표시
-                resultDisplay.innerHTML = `❌ 분석 실패: ${result.detail || result.error || '알 수 없는 오류'}`;
+                resultDisplay.innerHTML = `<h4 class="error-message">❌ 요청 실패</h4><p>${result.error || '알 수 없는 오류'}</p><p>${result.filename || ''}</p>`;
             }
         } catch (error) {
             console.error('Upload/Analysis error:', error);
-            resultDisplay.innerHTML = '❌ 요청 처리 중 네트워크 오류가 발생했습니다.';
+            resultDisplay.innerHTML = '<p class="error-message">❌ 요청 처리 중 네트워크 오류가 발생했습니다.</p>';
         }
     }
 
-    // --- (친구 및 차단 관련 함수는 이전과 동일) ---
     async function sendFriendRequest() {
         const targetUserId = document.getElementById('friendRequestInput').value;
         if (!targetUserId) { alert('유저 ID를 입력하세요.'); return; }
@@ -364,7 +382,6 @@
     function getBlockedUsers() {
         alert('차단 목록을 가져오는 API가 아직 확인되지 않았습니다.');
     }
-
 </script>
 
 </body>

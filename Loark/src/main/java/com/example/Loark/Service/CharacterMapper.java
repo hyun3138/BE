@@ -16,6 +16,7 @@ public class CharacterMapper {
                     .expeditionLevel(entity.getExpeditionLevel())
                     .itemLevel(entity.getItemLevel())
                     .combatPower(entity.getCombatPower())
+                    .arkPassive(entity.getArkPassive())
                     .main(entity.isMain())
                     .updatedAt(entity.getUpdatedAt())
                     .build();
