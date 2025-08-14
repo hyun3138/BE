@@ -56,6 +56,9 @@ public class SecurityConfig {
                 .requestMatchers("/oauth2/**", "/login/**").permitAll()
                 .requestMatchers("/auth/**").permitAll()   // /auth/me는 비로그인도 호출 가능(내부에서 authenticated=false로 응답)
 
+                // ✅ 공개 공대 목록은 비로그인 허용
+                .requestMatchers(HttpMethod.GET, "/api/parties/public").permitAll()
+
                 // 실제 API는 인증 필요
                 .requestMatchers("/api/**").authenticated()
 

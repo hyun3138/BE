@@ -32,16 +32,20 @@ public class PartyMember {
     @Column(name = "is_coleader", nullable = false)
     private boolean coleader; // 요구사항상 부공대장 없음 → 항상 false로 사용
 
-    @Column(name = "joined_at", columnDefinition = "timestamptz", nullable = false)
+    @Column(name = "joined_at", nullable = false /*, updatable = false ← 레거시 보정 끝날 때까지 잠시 빼두는 걸 추천*/)
     private OffsetDateTime joinedAt;
 
-    @Column(name = "left_at", columnDefinition = "timestamptz")
+    @Column(name = "left_at")
     private OffsetDateTime leftAt;
 
     @PrePersist
-    void pre() {
-        if (joinedAt == null) joinedAt = OffsetDateTime.now();
-        // coleader는 요구사항상 사용 안 함
-        // leftAt은 null이면 재직중 상태
+    public void prePersist() {
+        if (this.joinedAt == null) this.joinedAt = OffsetDateTime.now();
+    }
+
+    @PreUpdate
+    public void preUpdate() {
+        // 레거시 row에 joinedAt=null이 남아있는 경우 보정
+        if (this.joinedAt == null) this.joinedAt = OffsetDateTime.now();
     }
 }

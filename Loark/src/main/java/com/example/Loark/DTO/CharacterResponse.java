@@ -16,4 +16,5 @@ public class CharacterResponse {
     private Long combatPower;
     private boolean main;
     private LocalDateTime updatedAt;
+    private String arkPassive;
 }

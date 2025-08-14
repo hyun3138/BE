@@ -2,6 +2,8 @@ package com.example.Loark.Service;
 
 import com.example.Loark.Entity.*;
 import com.example.Loark.Repository.*;
+import com.example.Loark.Repository.PartyInviteRepository;
+import com.example.Loark.Entity.PartyInviteStatus;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -20,6 +22,8 @@ public class PartyMemberService {
     private final PartyRepository parties;
     private final PartyMemberRepository members;
     private final PartyAuthz authz;
+    private final UserRepository users;
+    private final PartyInviteRepository invites;
 
     /** 멤버 목록 */
     public List<PartyMember> list(UUID partyId) {
@@ -32,51 +36,44 @@ public class PartyMemberService {
         Party party = parties.findById(partyId)
                 .orElseThrow(() -> new IllegalArgumentException("공대를 찾을 수 없습니다."));
 
-        // 이미 재직중이면 금지
-        if (members.existsByParty_PartyIdAndUser_UserId(partyId, me)) {
-            // exists는 leftAt 상관 없으므로, 레코드를 찾아서 상태 확인
-            var current = members.findByParty_PartyId(partyId).stream()
-                    .filter(m -> m.getUser().getUserId().equals(me))
-                    .findFirst().orElse(null);
-            if (current != null && current.getLeftAt() == null) {
-                throw new IllegalStateException("이미 공대 멤버입니다.");
-            }
+        // ✅ private 파티는 직접 join 금지 (초대 수락 API를 사용해야 함)
+        if ("private".equalsIgnoreCase(party.getVisibility())) {
+            throw new IllegalStateException("비공개 공대는 초대를 수락해야만 가입할 수 있습니다."); // 400/409 계열로 처리됨
+            // (프론트는 /api/parties/{partyId}/invites/received로 초대 조회 → accept 호출)
+        }
+
+// 현재 멤버면 즉시 차단 (LeftAt IS NULL 기준)
+        if (members.existsByParty_PartyIdAndUser_UserIdAndLeftAtIsNull(partyId, me)) {
+            throw new IllegalStateException("이미 공대 멤버입니다.");
         }
 
         long cur = members.countByParty_PartyIdAndLeftAtIsNull(partyId);
         if (cur >= MAX_MEMBERS) throw new IllegalStateException("정원이 가득 찼습니다.(최대 8명)");
 
-        // 과거 이력 있으면 재참가( leftAt → null, joinedAt 갱신 )
-        var existed = members.findByParty_PartyId(partyId).stream()
-                .filter(m -> m.getUser().getUserId().equals(me))
-                .findFirst().orElse(null);
-
-        if (existed != null) {
-            existed.setLeftAt(null);
-            existed.setJoinedAt(OffsetDateTime.now());
-            members.save(existed);
-            return;
+// 과거 이력 있으면 복원, 없으면 신규
+        var histOpt = members.findByParty_PartyIdAndUser_UserId(partyId, me);
+        if (histOpt.isPresent()) {
+            var hist = histOpt.get();
+            if (hist.getLeftAt() != null) {
+                hist.setLeftAt(null);
+                hist.setSubparty(null);
+                hist.setRole(null);
+                hist.setColeader(false);
+                members.save(hist);
+            } else {
+                throw new IllegalStateException("이미 공대 멤버입니다.");
+            }
+        } else {
+            // 최초 입장
+            User user = users.findById(me).orElseThrow(() -> new IllegalArgumentException("사용자를 찾을 수 없습니다.")); // 2. ID로 User 엔티티 조회
+            var m = PartyMember.builder()
+                    .id(new PartyMemberId(partyId, me))
+                    .party(party)
+                    .user(user) // 조회한 User 엔티티 사용
+                    .build();
+            members.save(m);
         }
-
-        // 신규 참가 (일반 멤버)
-        PartyMember m = PartyMember.builder()
-                .id(new PartyMemberId(partyId, me))
-                .party(party)
-                .user(party.getOwner().getUserId().equals(me) ? party.getOwner() : null) // null이면 영속 참조로 대체
-                .subparty(null)
-                .role(null)
-                .coleader(false)
-                .build();
-
-        // user 영속 참조 주입 (owner가 아닐 때)
-        if (m.getUser() == null) {
-            m.setUser(new User()); // 참조 프록시 최적화가 필요하면 getReferenceById 사용
-            m.getUser().setUserId(me);
-        }
-
-        members.save(m);
     }
-
     /** 퇴장(본인) — 공대장은 퇴장 불가 */
     @Transactional
     public void leave(UUID partyId, Long me) {
