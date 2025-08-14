@@ -9,8 +9,10 @@ public interface PartyInviteRepository extends JpaRepository<PartyInvite, java.u
     Optional<PartyInvite> findByParty_PartyIdAndInvitee_UserIdAndStatus(
             java.util.UUID partyId, Long inviteeUserId, PartyInviteStatus status);
 
+    List<PartyInvite> findByInvitee_UserIdAndStatus(Long inviteeUserId, PartyInviteStatus status);
+
     boolean existsByParty_PartyIdAndInvitee_UserIdAndStatus(
             java.util.UUID partyId, Long inviteeUserId, PartyInviteStatus status);
 
-    List<PartyInvite> findByInvitee_UserIdAndStatus(Long inviteeUserId, PartyInviteStatus status);
+    List<PartyInvite> findByInviter_UserIdAndStatus(Long inviterUserId, PartyInviteStatus status);
 }

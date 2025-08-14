@@ -48,9 +48,10 @@ public class PartyInviteService {
         long cur = members.countByParty_PartyIdAndLeftAtIsNull(partyId);
         if (cur >= MAX_MEMBERS) throw new IllegalStateException("정원이 가득 찼습니다.(최대 8명)");
 
-        // 5) 이미 멤버인지 금지
-        if (members.existsByParty_PartyIdAndUser_UserId(partyId, inviteeId))
+        // 5) 이미 '현재' 멤버인지 금지 (leftAt IS NULL 만)
+        if (members.existsByParty_PartyIdAndUser_UserIdAndLeftAtIsNull(partyId, inviteeId)) {
             throw new IllegalStateException("이미 공대 멤버입니다.");
+        }
 
         // 6) 대기중 초대 중복 금지
         if (invites.existsByParty_PartyIdAndInvitee_UserIdAndStatus(partyId, inviteeId, PartyInviteStatus.PENDING))
@@ -65,36 +66,61 @@ public class PartyInviteService {
                 .build();
         return invites.save(inv);
     }
+    // ✅ 닉네임으로 초대
+    @Transactional
+    public PartyInvite createByNickname(UUID partyId, Long inviterId, String mainNickname) {
+        if (mainNickname == null || mainNickname.isBlank()) {
+            throw new IllegalArgumentException("대표 캐릭터 닉네임을 입력하세요.");
+        }
+        var invitee = users.findByMainCharacterIgnoreCase(mainNickname.trim())
+                .orElseThrow(() -> new IllegalArgumentException("해당 대표 캐릭터 닉네임의 사용자를 찾을 수 없습니다."));
+        return create(partyId, inviterId, invitee.getUserId()); // 🔁 기존 로직 재사용
+    }
 
-    /** 초대 수락 (초대 받은 사람만) */
     @Transactional
     public void accept(UUID inviteId, Long me) {
-        PartyInvite inv = invites.findById(inviteId)
+        var inv = invites.findById(inviteId)
                 .orElseThrow(() -> new IllegalArgumentException("초대를 찾을 수 없습니다."));
-        if (inv.getStatus() != PartyInviteStatus.PENDING)
-            throw new IllegalStateException("이미 처리된 초대입니다.");
-        if (!inv.getInvitee().getUserId().equals(me))
-            throw new IllegalStateException("내가 받은 초대만 수락할 수 있습니다.");
+        var partyId = inv.getParty().getPartyId();
 
-        UUID partyId = inv.getParty().getPartyId();
+        // 1) 이미 '현재 멤버'면 차단
+        if (members.existsByParty_PartyIdAndUser_UserIdAndLeftAtIsNull(partyId, me)) {
+            throw new IllegalStateException("이미 공대 멤버입니다.");
+        }
 
-        // 재확인: 정원/중복
+        // 2) 정원 체크 (leftAt IS NULL 기준)
         long cur = members.countByParty_PartyIdAndLeftAtIsNull(partyId);
         if (cur >= MAX_MEMBERS) throw new IllegalStateException("정원이 가득 찼습니다.");
-        if (members.existsByParty_PartyIdAndUser_UserId(partyId, me))
-            throw new IllegalStateException("이미 공대 멤버입니다.");
 
-        // 멤버 편성
-        PartyMember m = PartyMember.builder()
-                .id(new PartyMemberId(partyId, me))
-                .party(inv.getParty())
-                .user(inv.getInvitee())
-                .subparty(null)
-                .role(null)
-                .coleader(false)
-                .build();
-        members.save(m);
+        // 3) 과거 이력 조회 → 복원 또는 신규
+        var histOpt = members.findByParty_PartyIdAndUser_UserId(partyId, me);
+        if (histOpt.isPresent()) {
+            var hist = histOpt.get();
+            if (hist.getLeftAt() != null) {
+                // ✅ 재입장 복원: joinedAt 보장 + leftAt null
+                if (hist.getJoinedAt() == null) {
+                    hist.setJoinedAt(OffsetDateTime.now());
+                }
+                hist.setLeftAt(null);
+                hist.setSubparty(null);
+                hist.setRole(null);
+                hist.setColeader(false);
+                members.save(hist);
+            } else {
+                throw new IllegalStateException("이미 공대 멤버입니다.");
+            }
+        } else {
+            // ✅ 최초 입장: joinedAt 명시
+            var m = PartyMember.builder()
+                    .id(new PartyMemberId(partyId, me))
+                    .party(inv.getParty())
+                    .user(inv.getInvitee())
+                    .joinedAt(OffsetDateTime.now())
+                    .build();
+            members.save(m);
+        }
 
+        // 4) 초대 상태 갱신
         inv.setStatus(PartyInviteStatus.ACCEPTED);
         inv.setRespondedAt(OffsetDateTime.now());
         invites.save(inv);
@@ -131,4 +157,5 @@ public class PartyInviteService {
         inv.setRespondedAt(OffsetDateTime.now());
         invites.save(inv);
     }
+
 }

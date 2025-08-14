@@ -12,4 +12,6 @@ public interface CharacterRepository extends JpaRepository<Character, Long> {
     Optional<Character> findByUserAndName(User user, String name);
     void deleteByUserAndName(User user, String name);
     List<Character> findAllByUserOrderByMainDescUpdatedAtDesc(User user);
+    boolean existsByUserAndName(User user, String name);
+    List<Character> findAllByUser(User user);
 }
