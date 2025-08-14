@@ -1,5 +1,6 @@
 package com.example.Loark.Service;
 
+import com.example.Loark.DTO.Character_ArkPassive;
 import com.example.Loark.DTO.Character_Profile;
 import com.example.Loark.DTO.LoaSiblings;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -91,20 +92,35 @@ public class LostarkApiClient {
         }
     }
 
-    /** nameA와 nameB가 같은 원정대인지(=서로 siblings에 포함되는지) */
-    public boolean areSameExpedition(String apiKey, String nameA, String nameB) {
-        var sibOfB = getSiblings(apiKey, nameB);
-        if (sibOfB.stream().anyMatch(n -> n.equalsIgnoreCase(nameA))) return true;
-
-        // 방어적 이중 체크 (네트워크/케싱 편차 대응)
-        var sibOfA = getSiblings(apiKey, nameA);
-        return sibOfA.stream().anyMatch(n -> n.equalsIgnoreCase(nameB));
-    }
-
     /** 주어진 닉네임이 실제 존재하는지 빠른 확인(옵션) */
     public boolean existsCharacter(String apiKey, String nickname) {
         var sib = getSiblings(apiKey, nickname);
         // 본인도 siblings에 포함되어 내려오기 때문에 빈 배열이면 존재X로 판단
         return !sib.isEmpty();
+    }
+    public String fetchArkPassiveTitle(String apiKey, String characterName) {
+        try {
+            String enc = UriUtils.encodePathSegment(characterName, StandardCharsets.UTF_8);
+            String url = "https://developer-lostark.game.onstove.com/armories/characters/" + enc + "?filters=arkpassive";
+            log.info("[ARK] GET {}", url);
+            ResponseEntity<String> res = rt.exchange(url, HttpMethod.GET, auth(apiKey), String.class);
+            log.info("[ARK] status={}, title={}",
+                    res.getStatusCode(),
+                    mapper.readTree(res.getBody()).path("ArkPassive").path("Title").asText(null));
+            if (res.getStatusCode() != HttpStatus.OK || res.getBody() == null) {
+                log.warn("arkpassive 조회 실패 status={}, name={}", res.getStatusCode(), characterName);
+                return null;
+            }
+
+            Character_ArkPassive root = mapper.readValue(res.getBody(), Character_ArkPassive.class);
+            if (root.getArkPassive() == null) return null;
+            return root.getArkPassive().getTitle(); // ex) "질풍노도"
+        } catch (HttpClientErrorException.NotFound e) {
+            // 캐릭 삭제/명 중복 등으로 프로필 없음
+            return null;
+        } catch (Exception e) {
+            log.error("fetchArkPassiveTitle 실패 - {}", characterName, e);
+            return null;
+        }
     }
 }

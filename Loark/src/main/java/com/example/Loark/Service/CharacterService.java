@@ -19,11 +19,12 @@ public class CharacterService {
     private final CharacterRepository characterRepo;
 
     @Transactional
-    public Character upsertFromProfile(User user, String characterName, boolean setAsMain) {
+    public Character upsertFromProfileWithArkPassive(User user, String characterName, boolean setAsMain) {
         if (user.getUserApiKey() == null || user.getUserApiKey().isBlank())
             throw new IllegalStateException("API Key가 필요합니다.");
 
-        Character_Profile p = loa.fetchProfile(user.getUserApiKey(), characterName);
+        // 1) 프로필
+        var p = loa.fetchProfile(user.getUserApiKey(), characterName);
 
         Character ch = characterRepo.findByUserAndName(user, p.getCharacterName())
                 .orElse(Character.builder().user(user).name(p.getCharacterName()).build());
@@ -33,9 +34,17 @@ public class CharacterService {
         ch.setLevel(safeInt(p.getCharacterLevel()));
         ch.setExpeditionLevel(safeInt(p.getExpeditionLevel()));
         ch.setItemLevel(parseItemLevel(p.getItemAvgLevel()));
-        ch.setCombatPower(parseCombatPowerToLong(p.getCombatPower())); // Long 컬럼에 저장
+        ch.setCombatPower(parseCombatPowerToLong(p.getCombatPower()));
 
-        // 대표로 세팅 요청 시 main 토글
+        // 2) 아크패시브(직업 각인)
+        String arkTitle = loa.fetchArkPassiveTitle(user.getUserApiKey(), p.getCharacterName());
+        if (arkTitle != null && !arkTitle.isBlank()) {
+            ch.setArkPassive(arkTitle);       // 예) "질풍노도"
+        } else {
+            ch.setArkPassive(null);           // 없으면 null로 정리
+        }
+
+        // 3) 대표 토글
         if (setAsMain) {
             characterRepo.findByUserAndMainTrue(user).ifPresent(prev -> {
                 if (!prev.getName().equalsIgnoreCase(ch.getName())) {
@@ -44,11 +53,12 @@ public class CharacterService {
                 }
             });
             ch.setMain(true);
-            // User.mainCharacter 필드도 쓰고 있다면 여기에서 user.setMainCharacter(ch.getName()) 처리
+            // 필요시 user.setMainCharacter(ch.getName()) 동기화는 컨트롤러에서 이미 수행 중
         }
 
         return characterRepo.save(ch);
     }
+
 
     private static Integer safeInt(Integer v) { return (v == null ? 0 : v); }
 
