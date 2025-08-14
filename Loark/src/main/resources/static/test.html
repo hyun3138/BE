@@ -1,0 +1,665 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8" />
+    <title>Loark 백엔드 API 통합 테스트 (test.html)</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <style>
+        :root {
+          --bg: #0b1020;
+          --panel: #121831;
+          --muted: #8291b7;
+          --text: #e6ecff;
+          --accent: #7aa2ff;
+          --ok: #49d17d;
+          --warn: #ffd166;
+          --err: #ff6b6b;
+          --border: #1f2747;
+        }
+        * { box-sizing: border-box; }
+        body {
+          margin: 0; padding: 24px;
+          font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, 'Noto Sans KR', Helvetica, Arial, 'Apple Color Emoji', 'Segoe UI Emoji';
+          background: radial-gradient(1200px 800px at 10% -10%, #15204a, transparent), var(--bg);
+          color: var(--text);
+        }
+        h1, h2, h3 { margin: 0 0 8px; }
+        a { color: var(--accent); }
+        .container { max-width: 1200px; margin: 0 auto; }
+        .grid { display: grid; grid-template-columns: repeat(12, 1fr); gap: 16px; }
+        .card {
+          grid-column: span 12;
+          background: linear-gradient(180deg, rgba(18,24,49,0.9), rgba(18,24,49,0.7));
+          backdrop-filter: blur(6px);
+          border: 1px solid var(--border);
+          border-radius: 14px;
+          padding: 16px;
+          box-shadow: 0 10px 30px rgba(0,0,0,0.25), inset 0 1px 0 rgba(255,255,255,0.04);
+        }
+        @media (min-width: 1100px) {
+          .span-6 { grid-column: span 6; }
+          .span-4 { grid-column: span 4; }
+          .span-8 { grid-column: span 8; }
+          .span-3 { grid-column: span 3; }
+          .span-9 { grid-column: span 9; }
+        }
+        .card h2 { border-bottom: 1px dashed var(--border); padding-bottom: 8px; margin-bottom: 12px; }
+        .row { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin: 8px 0; }
+        label { font-size: 13px; color: var(--muted); margin-right: 6px; }
+        input[type="text"], input[type="number"], input[type="url"] {
+          background: #0e1430; color: var(--text); border: 1px solid var(--border); border-radius: 8px;
+          padding: 8px 10px; min-width: 240px;
+        }
+        textarea {
+          width: 100%; min-height: 70px; background: #0e1430; color: var(--text);
+          border: 1px solid var(--border); border-radius: 8px; padding: 8px 10px;
+        }
+        button {
+          background: linear-gradient(180deg, #2a3a73, #1b2963);
+          color: #eef3ff; border: 1px solid #2b3a74; border-radius: 10px;
+          padding: 8px 12px; cursor: pointer; font-weight: 600;
+          box-shadow: inset 0 1px 0 rgba(255,255,255,0.08), 0 6px 16px rgba(32,56,120,0.35);
+          transition: transform .05s ease, filter .15s ease;
+        }
+        button:hover { filter: brightness(1.1); }
+        button:active { transform: translateY(1px); }
+        code, pre {
+          background: #0f1535; color: #dbe3ff; border: 1px solid var(--border);
+          border-radius: 10px; padding: 8px 10px; display: block; overflow: auto; white-space: pre-wrap;
+        }
+        .muted { color: var(--muted); }
+        .ok { color: var(--ok); }
+        .warn { color: var(--warn); }
+        .err { color: var(--err); }
+        .badge { display: inline-block; padding: 2px 8px; border-radius: 999px; font-size: 12px; border: 1px solid var(--border); background: #0f1535; color: var(--muted); }
+        .hr { height: 1px; background: linear-gradient(90deg, transparent, var(--border), transparent); margin: 14px 0; }
+        .stack { display: grid; gap: 10px; }
+        .list { display: grid; gap: 8px; }
+        img.thumb { max-width: 120px; border: 1px solid var(--border); border-radius: 10px; }
+    </style>
+</head>
+<body>
+<div class="container">
+    <h1>Loark 백엔드 API 통합 테스트</h1>
+    <p class="muted">이 페이지 하나로 <strong>인증 / 계정연동 / 캐릭터 저장 / 친구&차단 / 공대 / 이미지 업로드</strong>까지 모두 테스트할 수 있습니다.</p>
+    <div class="hr"></div>
+
+    <div class="grid">
+        <!-- 로그인/유저 정보 -->
+        <section class="card span-6" id="card-auth">
+            <h2>① 로그인 & 내 정보</h2>
+            <div class="row">
+                <a href="/oauth2/authorization/google"><button>Google 로그인</button></a>
+                <button onclick="logout()">로그아웃</button>
+                <button onclick="authMe()">/auth/me 확인</button>
+            </div>
+            <div class="stack">
+                <div id="meBox"><span class="muted">로그인 상태를 불러오세요.</span></div>
+            </div>
+
+            <h3>JWT 쿠키 로그아웃</h3>
+            <div class="row">
+                <button onclick="logout()">/auth/logout</button>
+            </div>
+        </section>
+
+        <!-- 스토브 인증 -->
+        <section class="card span-6" id="card-stove">
+            <h2>② 로스트아크 계정 인증 (스토브)</h2>
+            <div class="stack">
+                <div class="row">
+                    <a href="https://profile.onstove.com/" target="_blank"><button>스토브 프로필 열기</button></a>
+                    <button onclick="getAuthCode()">인증 코드 발급</button>
+                </div>
+                <div id="authCodeBox"></div>
+                <div class="row">
+                    <label>프로필 URL</label>
+                    <input type="url" id="stoveUrl" placeholder="https://profile.onstove.com/ko/12345678" />
+                    <button onclick="verifyStove()">/api/auth/verify</button>
+                </div>
+                <div id="verifyBox"></div>
+            </div>
+
+            <div class="hr"></div>
+            <h3>Lost Ark API Key 저장</h3>
+            <div class="row">
+                <input type="text" id="apiKey" placeholder="Lost Ark Open API Key" />
+                <button onclick="saveApiKey()">/api/auth/api-key</button>
+            </div>
+            <div id="apiKeyBox" class="muted"></div>
+        </section>
+
+        <!-- 캐릭터 -->
+        <section class="card span-12" id="card-chars">
+            <h2>③ 캐릭터 저장/조회</h2>
+            <div class="row">
+                <label>옵션 API Key</label><input type="text" id="optApiKey" placeholder="미입력 시 서버 저장 키 사용" />
+                <button onclick="saveMain()">원정대 전체 저장 (/api/characters/save-main)</button>
+                <button onclick="listChars()">내 캐릭터 조회 (/api/characters/list)</button>
+            </div>
+            <div class="row">
+                <label>대표 토글 닉네임</label><input type="text" id="toggleName" placeholder="닉네임" />
+                <button onclick="toggleMain()">대표 토글 (/api/characters/toggle-main)</button>
+            </div>
+            <div id="charsBox"></div>
+        </section>
+
+        <!-- 이미지 업로드 -->
+        <section class="card span-12" id="card-images">
+            <h2>④ 레이드 스샷 업로드 & 분석</h2>
+            <div class="row">
+                <input type="file" id="imgFiles" multiple accept="image/*" />
+                <button onclick="uploadAndAnalyze()">업로드 & 분석 (/api/images/upload)</button>
+            </div>
+            <div id="imgBox"></div>
+        </section>
+
+        <!-- 친구 & 차단 -->
+        <section class="card span-12" id="card-friends">
+            <h2>⑤ 친구 & 메모 & 차단</h2>
+            <div class="grid">
+                <div class="span-4">
+                    <h3>친구 요청/관리</h3>
+                    <div class="stack">
+                        <div class="row">
+                            <label>대상 유저ID</label><input type="number" id="friendTarget" placeholder="상대 userId" />
+                            <button onclick="sendFriend()">친구 요청</button>
+                        </div>
+                        <div class="row">
+                            <button onclick="getFriends('PENDING')">받은 요청</button>
+                            <button onclick="getFriends('REQUESTED')">보낸 요청</button>
+                            <button onclick="getFriends('ACCEPTED')">친구 목록</button>
+                        </div>
+                        <div id="friendsBox"></div>
+                    </div>
+                </div>
+                <div class="span-4">
+                    <h3>요청 처리</h3>
+                    <div class="stack">
+                        <div class="row">
+                            <label>friendId</label><input type="number" id="friendId" placeholder="friendId" />
+                        </div>
+                        <div class="row">
+                            <button onclick="acceptFriend()">수락</button>
+                            <button onclick="declineFriend()">거절</button>
+                            <button onclick="cancelFriend()">요청 취소</button>
+                            <button onclick="deleteFriend()">삭제</button>
+                        </div>
+                        <div class="muted">* 취소는 내가 보낸 PENDING 요청만 가능</div>
+                        <div id="friendActionBox"></div>
+                    </div>
+                </div>
+                <div class="span-4">
+                    <h3>개인 메모</h3>
+                    <div class="stack">
+                        <div class="row">
+                            <label>friendId</label><input type="number" id="memoFriendId" placeholder="friendId" />
+                        </div>
+                        <div class="row">
+                            <textarea id="memoText" placeholder="메모 내용 (최대 50자 저장)"></textarea>
+                        </div>
+                        <div class="row">
+                            <button onclick="saveMemo()">메모 저장/수정</button>
+                            <button onclick="clearMemo()">메모 삭제</button>
+                        </div>
+                        <div id="memoBox"></div>
+                    </div>
+                </div>
+            </div>
+            <div class="hr"></div>
+            <div class="grid">
+                <div class="span-6">
+                    <h3>차단</h3>
+                    <div class="row">
+                        <label>차단 대상 userId</label><input type="number" id="blockTarget" placeholder="상대 userId" />
+                        <button onclick="blockUser()">차단</button>
+                    </div>
+                </div>
+                <div class="span-6">
+                    <h3>차단 해제</h3>
+                    <div class="row">
+                        <label>해제 대상 userId</label><input type="number" id="unblockTarget" placeholder="상대 userId" />
+                        <button onclick="unblockUser()">차단 해제</button>
+                    </div>
+                </div>
+            </div>
+            <div id="blockBox"></div>
+        </section>
+
+        <!-- 공대(파티) -->
+        <section class="card span-12" id="card-party">
+            <h2>⑥ 공대(파티) & 초대</h2>
+            <div class="grid">
+                <div class="span-6">
+                    <h3>공대 생성 & 내 공대</h3>
+                    <div class="row">
+                        <label>공대명</label><input type="text" id="partyName" placeholder="예: 카제로스 트라이팀" />
+                        <label>공개여부</label><input type="text" id="partyVisibility" value="private" />
+                        <button onclick="createParty()">공대 생성 (POST /api/parties)</button>
+                    </div>
+                    <div class="row">
+                        <button onclick="listMyParties()">내 공대 목록 (GET /api/parties/mine)</button>
+                    </div>
+                    <div id="partiesBox"></div>
+                </div>
+                <div class="span-6">
+                    <h3>초대 & 응답</h3>
+                    <div class="stack">
+                        <div class="row">
+                            <label>partyId(UUID)</label><input type="text" id="partyId" placeholder="생성 응답의 partyId" />
+                        </div>
+                        <div class="row">
+                            <label>inviteeUserId</label><input type="number" id="inviteeId" placeholder="초대 대상 userId" />
+                            <button onclick="createInvite()">초대 생성</button>
+                        </div>
+                        <div class="row">
+                            <label>inviteId(UUID)</label><input type="text" id="inviteId" placeholder="초대 응답의 inviteId" />
+                        </div>
+                        <div class="row">
+                            <button onclick="acceptInvite()">초대 수락</button>
+                            <button onclick="declineInvite()">초대 거절</button>
+                            <button onclick="cancelInvite()">초대 취소(공대장)</button>
+                        </div>
+                    </div>
+                    <div id="inviteBox"></div>
+                </div>
+            </div>
+        </section>
+    </div>
+</div>
+
+<script>
+    // ---------- helpers ----------
+    function $(id){ return document.getElementById(id); }
+    function showJson(target, obj) {
+      const pretty = JSON.stringify(obj, null, 2);
+      target.innerHTML = '<pre>'+escapeHtml(pretty)+'</pre>';
+    }
+    function escapeHtml(s) {
+      return s.replace(/[&<>]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]));
+    }
+    function toast(target, msg, cls='muted'){ target.innerHTML = '<div class="'+cls+'">'+escapeHtml(msg)+'</div>'; }
+
+    async function parseJsonOrText(resp) {
+      const ct = resp.headers.get('Content-Type') || '';
+      try {
+        if (ct.includes('application/json')) return await resp.json();
+        return await resp.text();
+      } catch(e){ return await resp.text(); }
+    }
+
+    // ---------- AUTH ----------
+    async function authMe(){
+      const box = $('meBox');
+      box.innerHTML = '불러오는 중...';
+      try {
+        const r = await fetch('/auth/me');
+        const data = await r.json();
+        if (data.authenticated) {
+          let html = '<div class="list">';
+          html += '<div><span class="badge">userId</span> '+data.userId+'</div>';
+          html += '<div><span class="badge">이름</span> '+(data.displayName||'-')+'</div>';
+          html += '<div><span class="badge">이메일</span> '+(data.email||'-')+'</div>';
+          if (data.pictureUrl) html += '<img class="thumb" src="'+data.pictureUrl+'" alt="profile" />';
+          html += '<div><span class="badge">stoveMemberNo</span> '+(data.stoveMemberNo||'-')+'</div>';
+          html += '<div><span class="badge">mainCharacter</span> '+(data.mainCharacter||'-')+'</div>';
+          html += '</div>';
+          box.innerHTML = html;
+        } else {
+          toast(box, '미인증 상태입니다. Google 로그인 하세요.', 'warn');
+        }
+      } catch(e){
+        toast(box, '요청 실패: '+e, 'err');
+      }
+    }
+
+    async function logout(){
+      const box = $('meBox');
+      try {
+        const r = await fetch('/auth/logout', { method: 'POST' });
+        const t = await parseJsonOrText(r);
+        toast(box, '로그아웃 완료. 페이지를 새로고침하세요.', 'ok');
+      } catch(e){
+        toast(box, '로그아웃 실패: '+e, 'err');
+      }
+    }
+
+    // ---------- STOVE VERIFY ----------
+    async function getAuthCode(){
+      const out = $('authCodeBox');
+      out.innerHTML = '인증 코드를 발급 중...';
+      try {
+        const r = await fetch('/api/auth/code');
+        const data = await r.json();
+        if (r.ok) {
+          out.innerHTML = '<div>인증 코드: <code>'+escapeHtml(data.data)+'</code></div><div class="muted">스토브 자기소개에 붙여넣으세요.</div>';
+        } else {
+          toast(out, '오류: '+(data.responseMessage||'실패'), 'err');
+        }
+      } catch(e){
+        toast(out, '요청 실패: '+e, 'err');
+      }
+    }
+
+    async function verifyStove(){
+      const url = $('stoveUrl').value.trim();
+      const out = $('verifyBox');
+      if (!url) return toast(out, 'URL을 입력하세요.', 'warn');
+      out.innerHTML = '검증 중...';
+      try {
+        const r = await fetch('/api/auth/verify', {
+          method: 'POST',
+          headers: { 'Content-Type':'application/json' },
+          body: JSON.stringify({ stoveUrl: url })
+        });
+        const data = await r.json();
+        if (r.ok) {
+          out.innerHTML = '<div class="ok">✅ '+escapeHtml(data.responseMessage)+'</div>'
+            + (data.data ? '<div>대표 캐릭터: <b>'+escapeHtml(data.data)+'</b></div>' : '');
+        } else {
+          out.innerHTML = '<div class="err">❌ '+escapeHtml(data.responseMessage||'실패')+'</div>'
+            + (data.data ? '<pre>'+escapeHtml(data.data)+'</pre>' : '');
+        }
+      } catch(e){
+        toast(out, '요청 실패: '+e, 'err');
+      }
+    }
+
+    async function saveApiKey(){
+      const key = $('apiKey').value.trim();
+      const out = $('apiKeyBox');
+      if (!key) return toast(out, 'API Key를 입력하세요.', 'warn');
+      try {
+        const r = await fetch('/api/auth/api-key', {
+          method: 'POST',
+          headers: { 'Content-Type':'application/json' },
+          body: JSON.stringify({ apiKey: key })
+        });
+        const t = await parseJsonOrText(r);
+        toast(out, (typeof t==='string'?t:JSON.stringify(t)), r.ok ? 'ok' : 'err');
+      } catch(e){
+        toast(out, '요청 실패: '+e, 'err');
+      }
+    }
+
+    // ---------- CHARACTERS ----------
+    async function saveMain(){
+      const out = $('charsBox');
+      const optKey = $('optApiKey').value.trim();
+      out.innerHTML = '저장 중...';
+      try {
+        const url = optKey ? ('/api/characters/save-main?apiKeyOpt='+encodeURIComponent(optKey)) : '/api/characters/save-main';
+        const r = await fetch(url, { method: 'POST' });
+        const t = await parseJsonOrText(r);
+        toast(out, (typeof t==='string'? t : JSON.stringify(t, null, 2)), r.ok ? 'ok' : 'err');
+      } catch(e){
+        toast(out, '요청 실패: '+e, 'err');
+      }
+    }
+
+    async function listChars(){
+      const out = $('charsBox');
+      out.innerHTML = '조회 중...';
+      try {
+        const r = await fetch('/api/characters/list');
+        const data = await r.json();
+        if (!r.ok) return toast(out, JSON.stringify(data), 'err');
+        showJson(out, data);
+      } catch(e){
+        toast(out, '요청 실패: '+e, 'err');
+      }
+    }
+
+    async function toggleMain(){
+      const out = $('charsBox');
+      const name = $('toggleName').value.trim();
+      if (!name) return toast(out, '닉네임 입력', 'warn');
+      try {
+        const params = new URLSearchParams({ name });
+        const r = await fetch('/api/characters/toggle-main?'+params.toString(), { method: 'POST' });
+        const t = await parseJsonOrText(r);
+        toast(out, (typeof t==='string'? t : JSON.stringify(t, null, 2)), r.ok ? 'ok' : 'err');
+      } catch(e){
+        toast(out, '요청 실패: '+e, 'err');
+      }
+    }
+
+    // ---------- IMAGES ----------
+    async function uploadAndAnalyze(){
+      const out = $('imgBox');
+      const input = $('imgFiles');
+      if (!input.files || input.files.length === 0) return toast(out, '이미지를 선택하세요.', 'warn');
+      const fd = new FormData();
+      for (const f of input.files) fd.append('files', f);
+      out.innerHTML = '업로드 & 분석 중...';
+      try {
+        const r = await fetch('/api/images/upload', { method: 'POST', body: fd });
+        const data = await parseJsonOrText(r);
+        if (r.ok) {
+          if (typeof data === 'object') {
+            let html = '<div class="ok">✅ 분석 완료</div>';
+            if (data.message) html += '<div>'+escapeHtml(data.message)+'</div>';
+            if (data.s3_json_path) html += '<div>결과 경로: <code>'+escapeHtml(data.s3_json_path)+'</code></div>';
+            out.innerHTML = html;
+          } else {
+            toast(out, data, 'ok');
+          }
+        } else {
+          if (typeof data === 'object' && (data.detail || data.error)) {
+            toast(out, '분석 실패: '+(data.detail||data.error), 'err');
+          } else {
+            toast(out, '분석 실패: '+data, 'err');
+          }
+        }
+      } catch(e){
+        toast(out, '네트워크 오류: '+e, 'err');
+      }
+    }
+
+    // ---------- FRIENDS ----------
+    async function sendFriend(){
+      const out = $('friendActionBox');
+      const target = Number($('friendTarget').value);
+      if (!target) return toast(out, '대상 userId 입력', 'warn');
+      try {
+        const r = await fetch('/api/friends/request', {
+          method: 'POST',
+          headers: {'Content-Type':'application/json'},
+          body: JSON.stringify({ targetUserId: target })
+        });
+        const t = await parseJsonOrText(r);
+        toast(out, (typeof t==='string'? t : JSON.stringify(t)), r.ok ? 'ok' : 'err');
+      } catch(e){
+        toast(out, '요청 실패: '+e, 'err');
+      }
+    }
+
+    async function getFriends(status){
+      const box = $('friendsBox');
+      box.innerHTML = '불러오는 중...';
+      try {
+        const r = await fetch('/api/friends?status='+encodeURIComponent(status));
+        const page = await r.json();
+        if (!r.ok) return showJson(box, page);
+        const arr = page.content || [];
+        if (arr.length === 0) return toast(box, '목록 비어 있음', 'muted');
+        let html = '<div class="list">';
+        for (const f of arr) {
+          html += '<div class="card" style="padding:10px;">'
+                + '<div><b>'+escapeHtml(f.otherNickname)+'</b> (ID: '+f.otherUserId+')</div>'
+                + '<div class="muted">friendId='+f.friendId+' | status='+f.status+'</div>';
+          if (f.friendMemo) html += '<div><span class="badge">내 메모</span> '+escapeHtml(f.friendMemo)+'</div>';
+          if (f.friendMemoUpdatedAt) html += '<div class="muted">메모수정: '+escapeHtml(f.friendMemoUpdatedAt)+'</div>';
+          html += '</div>';
+        }
+        html += '</div>';
+        box.innerHTML = html;
+      } catch(e){
+        toast(box, '요청 실패: '+e, 'err');
+      }
+    }
+
+    async function acceptFriend(){
+      const out = $('friendActionBox');
+      const id = Number($('friendId').value);
+      if (!id) return toast(out, 'friendId 입력', 'warn');
+      const r = await fetch(`/api/friends/requests/${id}/accept`, { method:'POST' });
+      const t = await parseJsonOrText(r);
+      toast(out, (typeof t==='string'? t : JSON.stringify(t)), r.ok ? 'ok' : 'err');
+    }
+    async function declineFriend(){
+      const out = $('friendActionBox');
+      const id = Number($('friendId').value);
+      if (!id) return toast(out, 'friendId 입력', 'warn');
+      const r = await fetch(`/api/friends/requests/${id}/decline`, { method:'POST' });
+      const t = await parseJsonOrText(r);
+      toast(out, (typeof t==='string'? t : JSON.stringify(t)), r.ok ? 'ok' : 'err');
+    }
+    async function cancelFriend(){
+      const out = $('friendActionBox');
+      const id = Number($('friendId').value);
+      if (!id) return toast(out, 'friendId 입력', 'warn');
+      const r = await fetch(`/api/friends/requests/${id}/cancel`, { method:'POST' });
+      const t = await parseJsonOrText(r);
+      toast(out, (typeof t==='string'? t : JSON.stringify(t)), r.ok ? 'ok' : 'err');
+    }
+    async function deleteFriend(){
+      const out = $('friendActionBox');
+      const id = Number($('friendId').value);
+      if (!id) return toast(out, 'friendId 입력', 'warn');
+      const r = await fetch(`/api/friends/${id}`, { method:'DELETE' });
+      const t = await parseJsonOrText(r);
+      toast(out, (typeof t==='string'? t : JSON.stringify(t)), r.ok ? 'ok' : 'err');
+    }
+
+    async function saveMemo(){
+      const out = $('memoBox');
+      const id = Number($('memoFriendId').value);
+      const memo = $('memoText').value;
+      if (!id) return toast(out, 'friendId 입력', 'warn');
+      const r = await fetch(`/api/friends/${id}/memo`, {
+        method: 'PATCH',
+        headers: {'Content-Type':'application/json'},
+        body: JSON.stringify({ memo })
+      });
+      const t = await parseJsonOrText(r);
+      toast(out, (typeof t==='string'? t : JSON.stringify(t)), r.ok ? 'ok' : 'err');
+    }
+    async function clearMemo(){
+      const out = $('memoBox');
+      const id = Number($('memoFriendId').value);
+      if (!id) return toast(out, 'friendId 입력', 'warn');
+      const r = await fetch(`/api/friends/${id}/memo`, { method: 'DELETE' });
+      const t = await parseJsonOrText(r);
+      toast(out, (typeof t==='string'? t : JSON.stringify(t)), r.ok ? 'ok' : 'err');
+    }
+
+    async function blockUser(){
+      const out = $('blockBox');
+      const id = Number($('blockTarget').value);
+      if (!id) return toast(out, 'blockedUserId 입력', 'warn');
+      const r = await fetch('/api/blocks', {
+        method: 'POST',
+        headers: {'Content-Type':'application/json'},
+        body: JSON.stringify({ blockedUserId: id })
+      });
+      const t = await parseJsonOrText(r);
+      toast(out, (typeof t==='string'? t : JSON.stringify(t)), r.ok ? 'ok' : 'err');
+    }
+    async function unblockUser(){
+      const out = $('blockBox');
+      const id = Number($('unblockTarget').value);
+      if (!id) return toast(out, 'blockedUserId 입력', 'warn');
+      const r = await fetch(`/api/blocks/${id}`, { method: 'DELETE' });
+      const t = await parseJsonOrText(r);
+      toast(out, (typeof t==='string'? t : JSON.stringify(t)), r.ok ? 'ok' : 'err');
+    }
+
+    // ---------- PARTIES ----------
+    async function createParty(){
+      const out = $('partiesBox');
+      const name = $('partyName').value.trim();
+      const visibility = $('partyVisibility').value.trim() || 'private';
+      if (!name) return toast(out, '공대명 입력', 'warn');
+      const r = await fetch('/api/parties', {
+        method: 'POST',
+        headers: {'Content-Type':'application/json'},
+        body: JSON.stringify({ name, visibility })
+      });
+      const data = await parseJsonOrText(r);
+      if (r.ok) {
+        showJson(out, data);
+        if (typeof data==='object' && data.partyId) $('partyId').value = data.partyId;
+      } else {
+        toast(out, typeof data==='string' ? data : JSON.stringify(data), 'err');
+      }
+    }
+
+    async function listMyParties(){
+      const out = $('partiesBox');
+      out.innerHTML = '조회 중...';
+      const r = await fetch('/api/parties/mine');
+      const data = await parseJsonOrText(r);
+      if (r.ok) showJson(out, data);
+      else toast(out, typeof data==='string'?data:JSON.stringify(data), 'err');
+    }
+
+    async function createInvite(){
+      const out = $('inviteBox');
+      const partyId = $('partyId').value.trim();
+      const inviteeUserId = Number($('inviteeId').value);
+      if (!partyId) return toast(out, 'partyId 입력', 'warn');
+      if (!inviteeUserId) return toast(out, 'inviteeUserId 입력', 'warn');
+      const r = await fetch(`/api/parties/${encodeURIComponent(partyId)}/invites`, {
+        method: 'POST',
+        headers: {'Content-Type':'application/json'},
+        body: JSON.stringify({ inviteeUserId })
+      });
+      const data = await parseJsonOrText(r);
+      if (r.ok) {
+        showJson(out, data);
+        if (typeof data==='object' && data.inviteId) $('inviteId').value = data.inviteId;
+      } else toast(out, typeof data==='string'?data:JSON.stringify(data), 'err');
+    }
+
+    async function acceptInvite(){
+      const out = $('inviteBox');
+      const partyId = $('partyId').value.trim();
+      const inviteId = $('inviteId').value.trim();
+      if (!partyId || !inviteId) return toast(out, 'partyId / inviteId 입력', 'warn');
+      const r = await fetch(`/api/parties/${encodeURIComponent(partyId)}/invites/${encodeURIComponent(inviteId)}/accept`, {
+        method: 'POST'
+      });
+      const data = await parseJsonOrText(r);
+      toast(out, typeof data==='string'? data : JSON.stringify(data), r.ok ? 'ok' : 'err');
+    }
+
+    async function declineInvite(){
+      const out = $('inviteBox');
+      const partyId = $('partyId').value.trim();
+      const inviteId = $('inviteId').value.trim();
+      if (!partyId || !inviteId) return toast(out, 'partyId / inviteId 입력', 'warn');
+      const r = await fetch(`/api/parties/${encodeURIComponent(partyId)}/invites/${encodeURIComponent(inviteId)}/decline`, {
+        method: 'POST'
+      });
+      const data = await parseJsonOrText(r);
+      toast(out, typeof data==='string'? data : JSON.stringify(data), r.ok ? 'ok' : 'err');
+    }
+
+    async function cancelInvite(){
+      const out = $('inviteBox');
+      const partyId = $('partyId').value.trim();
+      const inviteId = $('inviteId').value.trim();
+      if (!partyId || !inviteId) return toast(out, 'partyId / inviteId 입력', 'warn');
+      const r = await fetch(`/api/parties/${encodeURIComponent(partyId)}/invites/${encodeURIComponent(inviteId)}/cancel`, {
+        method: 'POST'
+      });
+      const data = await parseJsonOrText(r);
+      toast(out, typeof data==='string'? data : JSON.stringify(data), r.ok ? 'ok' : 'err');
+    }
+
+    // 자동으로 현재 상태 로드
+    authMe();
+</script>
+</body>
+</html>

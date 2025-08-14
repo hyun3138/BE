@@ -9,8 +9,12 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.web.PageableDefault;
+import org.springframework.data.domain.Sort;
 
-import java.util.stream.Collectors;
+import java.util.UUID;
 
 @RestController
 @RequestMapping("/api/parties")
@@ -26,11 +30,40 @@ public class PartyController {
         return ResponseEntity.ok(PartyMapper.toDto(saved));
     }
 
-    /** 내가 공대장인 공대 목록 */
-    @GetMapping("/mine")
-    public ResponseEntity<?> mine(@AuthenticationPrincipal User me) {
-        var list = partyService.listMine(me.getUserId())
-                .stream().map(PartyMapper::toDto).collect(Collectors.toList());
+    @GetMapping("/joined")
+    public ResponseEntity<?> joined(@AuthenticationPrincipal User me) {
+        if (me == null) return ResponseEntity.status(401).body("인증 필요");
+        var list = partyService.listJoined(me.getUserId()).stream()
+                .map(PartyMapper::toDto)
+                .toList();
         return ResponseEntity.ok(list);
+    }
+
+    @DeleteMapping("/{partyId}")
+    public ResponseEntity<?> delete(@PathVariable UUID partyId,
+                                    @AuthenticationPrincipal User me) {
+        if (me == null) return ResponseEntity.status(401).body("인증 필요");
+        partyService.deleteOwned(partyId, me.getUserId());
+        return ResponseEntity.ok("공대를 삭제했습니다.");
+    }
+    @PatchMapping("/{partyId}/owner")
+    public ResponseEntity<?> transferOwner(@PathVariable UUID partyId,
+                                           @RequestParam Long newOwnerUserId,
+                                           @AuthenticationPrincipal User me) {
+        if (me == null) return ResponseEntity.status(401).body("인증 필요");
+        partyService.transferOwner(partyId, me.getUserId(), newOwnerUserId);
+        return ResponseEntity.ok("공대장 권한을 위임했습니다.");
+    }
+
+    /** ✅ 전체 공개 공대 목록 (비로그인 허용) */
+    @GetMapping("/public")
+    public ResponseEntity<?> listPublic(
+            @RequestParam(required = false) String q,
+            @PageableDefault(size = 20, sort = "createdAt", direction = Sort.Direction.DESC)
+            Pageable pageable
+    ) {
+        Page<PartyResponse> page = partyService.listPublic(q, pageable)
+                .map(PartyMapper::toDto);
+        return ResponseEntity.ok(page);
     }
 }
