@@ -26,10 +26,12 @@ jobs:
 
       # 3. gradlew 파일에 실행 권한을 부여합니다.
       - name: Grant execute permission for gradlew
+        working-directory: ./Loark # ✅ Loark 디렉터리로 이동
         run: chmod +x gradlew
 
       # 4. Gradle로 프로젝트를 빌드합니다.
       - name: Build with Gradle
+        working-directory: ./Loark # ✅ Loark 디렉터리로 이동
         run: ./gradlew build -x test # 테스트는 생략하고 빌드
 
       # 5. AWS ECR에 접근하기 위한 자격 증명을 설정합니다.
