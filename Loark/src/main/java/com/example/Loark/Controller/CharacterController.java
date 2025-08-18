@@ -2,16 +2,23 @@ package com.example.Loark.Controller;
 
 import com.example.Loark.DTO.ChangeMainRequest;
 import com.example.Loark.Entity.Character;
+import com.example.Loark.Entity.CharacterSpec;
 import com.example.Loark.Entity.User;
 import com.example.Loark.Repository.CharacterRepository;
 import com.example.Loark.Repository.UserRepository;
 import com.example.Loark.Service.CharacterService;
 import com.example.Loark.Service.LostarkApiClient;
+import com.fasterxml.jackson.core.JsonProcessingException;
 import lombok.RequiredArgsConstructor;
+import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.bind.annotation.*;
+
+import java.time.LocalDate;
+import java.util.Optional;
+
 import static com.example.Loark.Service.CharacterMapper.toDto;
 
 @RestController
@@ -22,6 +29,40 @@ public class CharacterController {
     private final UserRepository userRepository;
     private final CharacterService characterService;
     private final LostarkApiClient lostarkApi;
+
+    @GetMapping("/{characterName}/spec/latest")
+    public ResponseEntity<CharacterSpec> getLatestCharacterSpec(@PathVariable String characterName) {
+        Optional<CharacterSpec> specOpt = characterService.getLatestCharacterSpec(characterName);
+        return specOpt.map(ResponseEntity::ok)
+                .orElseGet(() -> ResponseEntity.notFound().build());
+    }
+
+    @GetMapping("/{characterName}/spec")
+    public ResponseEntity<CharacterSpec> getCharacterSpecByDate(
+            @PathVariable String characterName,
+            @RequestParam("date") @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate date) {
+        Optional<CharacterSpec> specOpt = characterService.getCharacterSpecByDate(characterName, date);
+        return specOpt.map(ResponseEntity::ok)
+                .orElseGet(() -> ResponseEntity.notFound().build());
+    }
+
+    @PostMapping("/{characterName}/spec")
+    public ResponseEntity<?> saveCharacterSpec(@AuthenticationPrincipal User me,
+                                               @PathVariable String characterName) {
+        if (me == null) {
+            return ResponseEntity.status(401).body("인증이 필요합니다.");
+        }
+        try {
+            characterService.saveCharacterSpec(me, characterName);
+            return ResponseEntity.ok(characterName + " 캐릭터의 스펙 정보가 저장되었습니다.");
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity.status(404).body(e.getMessage());
+        } catch (JsonProcessingException e) {
+            return ResponseEntity.status(500).body("스펙 정보 처리 중 오류가 발생했습니다.");
+        } catch (Exception e) {
+            return ResponseEntity.status(500).body("서버 내부 오류가 발생했습니다.");
+        }
+    }
 
     /** ✅ 대표 캐릭터 저장(= 인증 버튼): 이제 원정대 전체 저장 + arkpassive 포함 */
     @PostMapping("/save-main")
