@@ -21,6 +21,7 @@ import java.time.LocalTime;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
+import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
@@ -85,6 +86,11 @@ public class CharacterService {
         // 항상 새로운 CharacterSpec 객체를 생성하여 이력으로 저장
         CharacterSpec spec = new CharacterSpec();
         spec.setCharacter(character);
+
+        // 프로필 정보에서 아이템 레벨과 전투력 추출 및 저장
+        JsonNode profile = root.path("ArmoryProfile");
+        spec.setItemLevel(parseItemLevel(profile.path("ItemAvgLevel").asText(null)));
+        spec.setCombatPower(parseCombatPowerToLong(profile.path("CombatPower").asText(null)));
 
         // To handle unequipped items, null out all fields before populating.
         spec.setEquipHelmet(null);
@@ -205,13 +211,16 @@ public class CharacterService {
         spec.setCardEffect(getJsonNodeAsString(cardsNode.path("Effects")));
 
         // 아크패시브
-        JsonNode arkPassive = root.path("ArkPassive");
-        
+        JsonNode arkPassiveNode = root.path("ArkPassive");
+
+        // ✅ 직업 각인 (Ark Passive Title)
+        spec.setArkPassive(arkPassiveNode.path("Title").asText(null));
+
         // 'Points' for summary (e.g., "진화", "깨달음", "도약" level descriptions)
         spec.setArkEvolution(null);
         spec.setArkRealization(null);
         spec.setArkLeap(null);
-        JsonNode points = arkPassive.path("Points");
+        JsonNode points = arkPassiveNode.path("Points");
         if (points.isArray()) {
             for (JsonNode point : points) {
                 String name = point.path("Name").asText();
@@ -227,7 +236,7 @@ public class CharacterService {
         spec.setArkEvolutionDetail(null);
         spec.setArkRealizationDetail(null);
         spec.setArkLeapDetail(null);
-        JsonNode arkEffects = arkPassive.path("Effects");
+        JsonNode arkEffects = arkPassiveNode.path("Effects");
         if (arkEffects.isArray()) {
             List<String> evolutionDetails = new ArrayList<>();
             List<String> realizationDetails = new ArrayList<>();
@@ -243,7 +252,7 @@ public class CharacterService {
                 try {
                     JsonNode tooltipRoot = mapper.readTree(tooltipJsonString);
                     String description = findDescriptionInTooltip(tooltipRoot);
-                    
+
                     if (description == null || description.isEmpty()) continue;
 
                     String cleanedDescription = description.replaceAll("<[^>]*>", "").replace("||<BR>", " ").trim();
@@ -285,19 +294,18 @@ public class CharacterService {
     private String findDescriptionInTooltip(JsonNode tooltipRoot) {
         // This helper method attempts to find the description from the complex tooltip JSON
         if (tooltipRoot == null) return null;
-        
+
         // Path based on observation of '아크패시브.txt'
         JsonNode element = tooltipRoot.path("Element_001").path("value").path("Element_000").path("value");
         if (element.isTextual()) {
             return element.asText();
         }
-        
+
         // Another possible path
         element = tooltipRoot.path("Element_002").path("value");
         if (element.isTextual()) {
             return element.asText();
         }
-
         // Add more robust searching logic if needed
         return null;
     }
@@ -389,6 +397,15 @@ public class CharacterService {
 
         String arkTitle = loa.fetchArkPassiveTitle(user.getUserApiKey(), p.getCharacterName());
         ch.setArkPassive((arkTitle != null && !arkTitle.isBlank()) ? arkTitle : null);
+
+        // 첫 번째 스펙 기록 생성
+        CharacterSpec initialSpec = new CharacterSpec();
+        initialSpec.setCharacter(ch);
+        initialSpec.setItemLevel(ch.getItemLevel());
+        initialSpec.setCombatPower(ch.getCombatPower());
+        initialSpec.setArkPassive(ch.getArkPassive());
+        ch.getSpecs().add(initialSpec);
+
 
         if (setAsMain) {
             characterRepo.findByUserAndMainTrue(user).ifPresent(prev -> {

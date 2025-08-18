@@ -9,6 +9,7 @@ import org.hibernate.annotations.JdbcTypeCode;
 import org.hibernate.type.SqlTypes;
 
 import jakarta.persistence.*;
+import java.math.BigDecimal;
 import java.time.LocalDateTime;
 
 @Getter
@@ -28,6 +29,15 @@ public class CharacterSpec {
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "character_id", nullable = false)
     private Character character;
+
+    @Column(name="character_item_level", precision=6, scale=2)
+    private BigDecimal itemLevel;
+
+    @Column(name="character_combat_power")
+    private Long combatPower;
+
+    @Column(name="character_ark_passive", length=50)
+    private String arkPassive;
 
     // 장비(Equip)
     @JdbcTypeCode(SqlTypes.JSON)
