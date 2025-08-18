@@ -1,10 +1,13 @@
 package com.example.Loark.Entity;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import jakarta.persistence.*;
 import lombok.*;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
+import java.util.ArrayList;
+import java.util.List;
 
 @Entity
 @Table(name="characters",
@@ -17,6 +20,7 @@ public class Character {
     @Column(name="character_id")
     private Long characterId;
 
+    @JsonIgnore
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name="user_id", nullable=false)
     private User user;
@@ -53,4 +57,8 @@ public class Character {
 
     @Column(name="character_ark_passive", length=50)
     private String arkPassive;  // nullable 허용
+
+    @JsonIgnore
+    @OneToMany(mappedBy = "character", cascade = CascadeType.ALL, orphanRemoval = true, fetch = FetchType.LAZY)
+    private List<CharacterSpec> specs = new ArrayList<>();
 }

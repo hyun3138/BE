@@ -29,6 +29,29 @@ public class LostarkApiClient {
         return new HttpEntity<>(h);
     }
 
+    public String fetchArmory(String apiKey, String characterName) {
+        try {
+            String enc = UriUtils.encodePathSegment(characterName, StandardCharsets.UTF_8);
+            String url = "https://developer-lostark.game.onstove.com/armories/characters/" + enc;
+
+            ResponseEntity<String> res =
+                    rt.exchange(url, HttpMethod.GET, auth(apiKey), String.class);
+
+            if (res.getStatusCode() != HttpStatus.OK || res.getBody() == null) {
+                log.warn("armories 조회 실패 status={}, name={}", res.getStatusCode(), characterName);
+                return null;
+            }
+
+            return res.getBody();
+        } catch (HttpClientErrorException.NotFound e) {
+            log.warn("armories 조회 실패 - 404 Not Found, name={}", characterName);
+            return null;
+        } catch (Exception e) {
+            log.error("fetchArmory 실패 - {}", characterName, e);
+            return null;
+        }
+    }
+
     public Character_Profile fetchProfile(String apiKey, String characterName) {
         try {
             String enc = UriUtils.encodePathSegment(characterName, StandardCharsets.UTF_8);
