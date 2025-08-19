@@ -1,0 +1,223 @@
+# LoArk 전투 통계 API 명세서
+
+*최신: 2025-08-19 / 운영 배포 기준*
+
+---
+
+## 1. 개요
+- **런타임**: AWS Lambda (Function URL, 무인증 퍼블릭 엔드포인트)
+- **응답 포맷**: `application/json; charset=utf-8`
+- **버전 관리**: 경로 접두사 `v1` 및 응답 필드 `version` 포함
+- **캐시 정책**: 엔드포인트별 `Cache-Control` 헤더 제공
+- **CORS 정책**: 허용됨 (프론트엔드 별도 프록시 불필요)
+
+---
+
+## 2. 공통 규칙
+
+### 난이도(difficulty)
+- 허용 값: `normal | hard | thefirst`
+- 한글 입력 가능: `노말 | 하드 | 더퍼스트`
+- 잘못된 값 입력 시: `400 Bad Request`
+
+### 부울(boolean) 파라미터
+- 허용 값: `1 | true | 0 | false`
+- 대소문자 무관
+
+### 시간 관련
+- `recorded_at`은 UTC+0 ISO8601 (`YYYY-MM-DDTHH:MM:SSZ`) 형식
+- 내부 DB는 UTC 기준 저장, 프론트는 필요 시 변환 처리
+
+### 오류 처리
+- 잘못된 파라미터: `400`
+- 인증 필요 없음
+- 내부 오류: `500` + JSON 응답
+
+---
+
+## 3. 사용자 제공 엔드포인트
+
+최종적으로 프론트엔드 사용자에게 제공되는 통계 API는 **3종**입니다:
+
+1. **히스토그램(histogram)** → 분포 전체 모양
+2. **박스플롯(boxplot)** → 구간별 편차, 아웃라이어 확인
+3. **퍼센타일(percentile)** → 개별 위치(상위 %)
+
+---
+
+### 3.1 `/v1/health`
+- **GET**
+- 서비스 상태 확인
+- **응답 예시**:
+```json
+{
+  "ok": true,
+  "service": "loark-stats-api",
+  "version": "v1",
+  "cold_start": false,
+  "boot_at": "2025-08-15T16:01:36.356457+00:00",
+  "now": "2025-08-15T16:08:01.158341+00:00",
+  "db": "ok"
+}
+```
+
+---
+
+### 3.2 `/v1/db-test`
+- **GET**
+- DB 연결 상태 테스트
+- 성공 시: `{ "status": "ok" }`
+- 실패 시: `{ "status": "error", "message": "..." }`
+
+---
+
+### 3.3 `/v1/histogram`
+- **GET**
+- 특정 기준으로 히스토그램 데이터 조회
+- **쿼리 파라미터**
+  - `x` : `level` 또는 `combat_power`
+  - `metric` : `dps` 또는 `support_dps`
+  - `role` : 직업 역할 (예: `dealer`, `support`)
+  - `raid` : 레이드 이름
+  - `gate` : 관문 번호
+  - `diff` : 난이도 (`normal|hard|thefirst`)
+- **응답 예시**:
+```json
+{
+  "x_bins": [1500, 1600, 1700],
+  "y_counts": [12, 34, 22]
+}
+```
+
+---
+
+### 3.4 `/v1/boxplot`
+- **GET**
+- 특정 구간(boxplot) 데이터 조회
+- **쿼리 파라미터**
+  - `x` : `level` 또는 `combat_power`
+  - `metric` : `dps` 또는 `support_dps`
+- **응답 예시**:
+```json
+{
+  "bin": 1600,
+  "min": 12.3,
+  "q1": 23.4,
+  "median": 45.6,
+  "q3": 67.8,
+  "max": 89.0
+}
+```
+
+---
+
+### 3.5 `/v1/percentile`
+- **GET**
+- 지정한 기준 값에 대한 퍼센타일 반환
+- **쿼리 파라미터**
+  - `x` : 기준 값
+  - `metric` : `dps` 또는 `support_dps`
+- **응답 예시**:
+```json
+{
+  "percentile": 0.87
+}
+```
+
+---
+
+## 4. 캐시 정책
+- `/v1/health` : 캐시 없음
+- `/v1/histogram`, `/v1/boxplot`, `/v1/percentile` : `Cache-Control: public, max-age=300` (5분)
+
+---
+
+## 5. 배포 환경
+- **AWS Lambda**: Docker 이미지 기반 (linux/arm64, Schema V2)
+- **EventBridge Scheduler**: 주기적 warmup 실행
+- **RDS(PostgreSQL)**: 통계 집계 데이터 조회
+
+---
+
+## 6. SQL 소스 요약 (총 6개)
+
+### 6.1 `detail_boxplot.sql`
+- **목적**: X축 구간(bin)별 박스플롯 통계 산출
+- **소스**: `statistic.fact_gate_metrics`
+- **출력**: `bin, n, mn, p25, p50, p75, mx`
+
+---
+
+### 6.2 `detail_dealer_peer_bars.sql`
+- **목적**: 딜러 전용 동료 기준 평균 (direction/syn_eff/crit)
+- **소스**: `statistic.fact_gate_metrics`
+- **출력**: `overall_sample_count`, `direction`, `syn_eff`, `crit`
+
+---
+
+### 6.3 `detail_heatmap.sql`
+- **목적**: 전투력 × 지표 히트맵 카운트
+- **소스**: `statistic.fact_gate_metrics`
+- **출력**: `x_bin, y_bin, c`
+
+---
+
+### 6.4 `detail_hist_segment.sql`
+- **목적**: 선택 구간 내 지표 분포 히스토그램
+- **소스**: `statistic.fact_gate_metrics`
+- **출력**: `bin, c` (빈도)
+
+---
+
+### 6.5 `raid_baseline_dealer.sql`
+- **목적**: 딜러용 베이스라인 분위수 번들 (전체/동료)
+- **소스**: `statistic.public_statistics`, `statistic.dim_boss_hps`
+- **출력**: 
+  - `overall_sample_count`, `peer_sample_count`
+  - 분위수 번들: dps/syn_eff/direction/crit/bp
+
+---
+
+### 6.6 `raid_baseline_support.sql`
+- **목적**: 서포터용 베이스라인 분위수 번들 (전체/동료)
+- **소스**: `statistic.public_statistics`
+- **출력**:
+  - `overall_sample_count`, `peer_sample_count`
+  - 분위수 번들: bps/brand/atk/dmg/awaken
+
+---
+
+## 7. SQL ↔ API 매핑
+
+### `/v1/raid-metrics/detail`
+- `detail_heatmap.sql` → 히트맵
+- `detail_hist_segment.sql` → 세그먼트 히스토그램
+- `detail_boxplot.sql` → 박스플롯
+- `detail_dealer_peer_bars.sql` → 딜러 전용 동료 평균
+
+### `/v1/raid-metrics`
+- `raid_baseline_dealer.sql` → 딜러 베이스라인
+- `raid_baseline_support.sql` → 서포터 베이스라인
+- 퍼센타일 → 코드에서 분위수 기반 선형보간 계산
+
+---
+
+## 8. 파라미터/토큰 정리
+
+- `__METRIC__`
+  - 딜러: `dps`
+  - 서포터: `support_dps`
+- `__X__`
+  - `combat_power` 또는 `level`
+- `__PEER_FILTER__`
+  - 딜러: `same_engraving` 또는 `same_class`
+  - 서포터: `class_name = peer_class`
+
+---
+
+## 9. 요약
+- 사용자에게 제공되는 핵심 API는 **히스토그램, 박스플롯, 퍼센타일**
+- 내부 집계는 6개의 SQL 소스로 분리되어 있음
+- DB에서 **public_statistics**, **dim_boss_hps**, **fact_gate_metrics**를 참조
+- 퍼센타일은 API 레벨에서 **분위수 번들 기반 계산**
+- 프론트엔드 담당자는 **API Gateway URL**만 알면 바로 호출 가능

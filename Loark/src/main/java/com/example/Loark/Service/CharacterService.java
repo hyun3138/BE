@@ -406,6 +406,10 @@ public class CharacterService {
         initialSpec.setArkPassive(ch.getArkPassive());
         ch.getSpecs().add(initialSpec);
 
+        if(ch.getSpecs() == null) {
+            ch.setSpecs(new ArrayList<>());
+        }
+        ch.getSpecs().add(initialSpec);
 
         if (setAsMain) {
             characterRepo.findByUserAndMainTrue(user).ifPresent(prev -> {
