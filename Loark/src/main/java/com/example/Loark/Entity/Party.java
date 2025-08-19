@@ -2,6 +2,8 @@ package com.example.Loark.Entity;
 import jakarta.persistence.*;
 import lombok.*;
 import java.time.OffsetDateTime;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.UUID;
 
 @Entity
@@ -39,4 +41,7 @@ public class Party {
 
     @PreUpdate
     void touch() { updatedAt = OffsetDateTime.now(); }
+
+    @OneToMany(mappedBy = "party", cascade = CascadeType.REMOVE, orphanRemoval = true, fetch = FetchType.LAZY)
+    private List<PartyMember> members = new ArrayList<>();
 }
