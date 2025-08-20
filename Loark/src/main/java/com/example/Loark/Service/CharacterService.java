@@ -422,4 +422,55 @@ public class CharacterService {
         int skipped;
         int error;
     }
+
+    @Transactional
+    public void updateAllCharacterSpecs() {
+        List<Character> characters = characterRepo.findAll();
+        for (Character character : characters) {
+            try {
+                updateCharacterSpecIfNeeded(character);
+            } catch (Exception e) {
+                System.err.println("Failed to update spec for character: " + character.getName());
+                e.printStackTrace();
+            }
+        }
+    }
+
+    private void updateCharacterSpecIfNeeded(Character character) throws JsonProcessingException {
+        User user = character.getUser();
+        requireApiKey(user);
+
+        String armoryJson = loa.fetchArmory(user.getUserApiKey(), character.getName());
+        if (armoryJson == null) {
+            return;
+        }
+
+        JsonNode root = mapper.readTree(armoryJson);
+        if (root.isArray()) {
+            if (root.size() > 0) root = root.get(0);
+            else return;
+        }
+
+        JsonNode profile = root.path("ArmoryProfile");
+        if (profile.isMissingNode()) {
+            return;
+        }
+
+        Long newCombatPower = parseCombatPowerToLong(profile.path("CombatPower").asText(null));
+        if (newCombatPower == null) {
+            return;
+        }
+
+        Optional<CharacterSpec> latestSpecOpt = characterSpecRepo.findFirstByCharacterCharacterIdOrderByUpdatedAtDesc(character.getCharacterId());
+
+        boolean shouldUpdate = latestSpecOpt.map(latestSpec -> newCombatPower.compareTo(nvl(latestSpec.getCombatPower())) > 0)
+                                          .orElse(true);
+
+        if (shouldUpdate) {
+            CharacterSpec newSpec = new CharacterSpec();
+            newSpec.setCharacter(character);
+            populateSpecFromJson(newSpec, root, character.getName());
+            characterSpecRepo.save(newSpec);
+        }
+    }
 }

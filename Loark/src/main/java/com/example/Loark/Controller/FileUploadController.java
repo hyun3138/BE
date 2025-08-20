@@ -69,10 +69,9 @@ public class FileUploadController {
                 //TODO:
                 String recorded_at = info.getOrDefault("recorded_at", "unknown");
                 /**
-                 * 파일에 저장하기 전에 여기에 캐릭터명으로 로스아크API 호출
+                 * 파일에 저장하기 전에 여기에 캐릭터명으로 캐릭터테이블에 id 추출후 id로 캐릭터스펙테이블에서
                  * -> DB에 저장되어있는 캐릭터 테이블에 있는 전투력과 인식되어 나온 recorded_at 이전 가까운 장비 정보 저장되어있는 DB에 전투력과비교해서
                  * -> 높은쪽의 전투력의 정보를 json으로 같이저장
-                 * MAX_ARMOR(PFK: 캐릭터명) 테이블 & UPDATE_ARMOR(FK: 캐릭터명) 테이블 생성 필요
                  * info:{}, armor:{}
                  * **/
 
