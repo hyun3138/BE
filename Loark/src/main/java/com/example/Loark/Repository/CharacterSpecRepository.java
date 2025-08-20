@@ -14,4 +14,8 @@ public interface CharacterSpecRepository extends JpaRepository<CharacterSpec, Lo
     Optional<CharacterSpec> findFirstByCharacterCharacterIdOrderByUpdatedAtDesc(Long characterId);
 
     Optional<CharacterSpec> findFirstByCharacterCharacterIdAndUpdatedAtLessThanEqualOrderByUpdatedAtDesc(Long characterId, LocalDateTime updatedAt);
+
+    Optional<CharacterSpec> findFirstByCharacterCharacterIdOrderByUpdatedAtAsc(Long characterId);
+
+    Optional<CharacterSpec> findFirstByCharacterCharacterIdAndUpdatedAtBeforeOrderByUpdatedAtDesc(Long characterId, LocalDateTime recordedAt);
 }
