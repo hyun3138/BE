@@ -11,7 +11,7 @@ import java.util.List;
 @Entity
 @Table(name="characters",
         uniqueConstraints = @UniqueConstraint(name="ux_characters_user_name",
-                columnNames={"user_id","character_name"}))
+                columnNames={"user_id", "character_name"}))
 @Getter @Setter @NoArgsConstructor @AllArgsConstructor @Builder
 public class Character {
 
@@ -26,6 +26,9 @@ public class Character {
 
     @Column(name="character_name", nullable=false, length=100)
     private String name;
+
+    @Column(name="character_class", nullable=false, length=100)
+    private String clazz;
 
     @Column(name="character_server", nullable=false, length=100)
     private String server;
