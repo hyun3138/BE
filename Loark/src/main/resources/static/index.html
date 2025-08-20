@@ -241,7 +241,7 @@
                 characters.forEach(character => {
                     const option = document.createElement('option');
                     // 상세 정보를 모두 value와 textContent에 담습니다.
-                    const fullCharacterInfo = `${character.name}_(${character.clazz} / ${character.arkPassive} / ${character.itemLevel} / ${character.combatPower})`;
+                    const fullCharacterInfo = `${character.name}`;
                     option.value = fullCharacterInfo;
                     option.textContent = fullCharacterInfo;
                     select.appendChild(option);

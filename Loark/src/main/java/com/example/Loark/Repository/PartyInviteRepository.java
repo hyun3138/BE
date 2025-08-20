@@ -15,4 +15,6 @@ public interface PartyInviteRepository extends JpaRepository<PartyInvite, java.u
             java.util.UUID partyId, Long inviteeUserId, PartyInviteStatus status);
 
     List<PartyInvite> findByInviter_UserIdAndStatus(Long inviterUserId, PartyInviteStatus status);
+
+    void deleteAllByParty(Party party);
 }
