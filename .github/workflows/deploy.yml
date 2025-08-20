@@ -81,4 +81,5 @@ jobs:
               "${{ secrets.AWS_S3_IMAGES }}" \
               "${{ secrets.AWS_S3_JSON }}" \
               "${{ secrets.CLOVA_OCR_URL }}" \
-              "${{ secrets.CLOVA_OCR_SECRET_KEY }}"
+              "${{ secrets.CLOVA_OCR_SECRET_KEY }}" \
+              "${{ secrets.LOARK_STAT_API }}"
