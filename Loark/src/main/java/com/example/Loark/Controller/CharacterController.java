@@ -1,6 +1,7 @@
 package com.example.Loark.Controller;
 
 import com.example.Loark.DTO.ChangeMainRequest;
+import com.example.Loark.DTO.FactGateMetricsDto;
 import com.example.Loark.Entity.Character;
 import com.example.Loark.Entity.CharacterSpec;
 import com.example.Loark.Entity.User;
@@ -17,6 +18,7 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.bind.annotation.*;
 
 import java.time.LocalDate;
+import java.util.List;
 import java.util.Optional;
 
 import static com.example.Loark.Service.CharacterMapper.toDto;
@@ -44,6 +46,24 @@ public class CharacterController {
         Optional<CharacterSpec> specOpt = characterService.getCharacterSpecByDate(characterName, date);
         return specOpt.map(ResponseEntity::ok)
                 .orElseGet(() -> ResponseEntity.notFound().build());
+    }
+
+    /**
+     * 특정 캐릭터의 모든 전투 기록을 조회합니다.
+     */
+    @GetMapping("/{characterName}/combat-records")
+    public ResponseEntity<?> getCombatRecordsForCharacter(@PathVariable String characterName,
+                                                          @AuthenticationPrincipal User me) {
+        if (me == null) {
+            return ResponseEntity.status(401).body("인증이 필요합니다.");
+        }
+
+        try {
+            List<FactGateMetricsDto> combatRecords = characterService.getCharacterCombatRecords(characterName, me);
+            return ResponseEntity.ok(combatRecords);
+        } catch (IllegalStateException e) {
+            return ResponseEntity.badRequest().body(e.getMessage());
+        }
     }
 
     @PostMapping("/{characterName}/spec")

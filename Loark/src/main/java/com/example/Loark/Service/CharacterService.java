@@ -1,14 +1,15 @@
 package com.example.Loark.Service;
 
+import com.example.Loark.DTO.FactGateMetricsDto;
 import com.example.Loark.Entity.Character;
 import com.example.Loark.Entity.CharacterSpec;
 import com.example.Loark.Entity.User;
 import com.example.Loark.Repository.CharacterRepository;
 import com.example.Loark.Repository.CharacterSpecRepository;
+import com.example.Loark.Repository.FactGateMetricsRepository;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.node.ObjectNode;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -32,9 +33,27 @@ public class CharacterService {
     private final LostarkApiClient loa;
     private final CharacterRepository characterRepo;
     private final CharacterSpecRepository characterSpecRepo;
+    private final FactGateMetricsRepository factGateMetricsRepository; // 의존성 추가
     private final ObjectMapper mapper;
     private final ClovaOcrService clovaOcrService;
     private final S3UploadService s3UploadService;
+
+    /**
+     * 특정 캐릭터의 모든 전투 기록을 조회합니다.
+     * @param characterName 조회할 캐릭터의 이름
+     * @param currentUser 요청을 보낸 로그인된 사용자
+     * @return 전투 기록 DTO 리스트
+     * @throws IllegalStateException 권한이 없거나 캐릭터가 존재하지 않을 경우
+     */
+    @Transactional(readOnly = true)
+    public List<FactGateMetricsDto> getCharacterCombatRecords(String characterName, User currentUser) {
+        // 1. 캐릭터가 요청을 보낸 사용자의 소유인지 확인 (보안 검사)
+        characterRepo.findByUserAndName(currentUser, characterName)
+                .orElseThrow(() -> new IllegalStateException("조회 권한이 없거나 존재하지 않는 캐릭터입니다."));
+
+        // 2. 권한이 확인되면, 전투 기록을 조회하여 반환
+        return factGateMetricsRepository.findAllByCharacterName(characterName);
+    }
 
     @Transactional(readOnly = true)
     public Optional<CharacterSpec> getLatestCharacterSpec(String characterName) {
