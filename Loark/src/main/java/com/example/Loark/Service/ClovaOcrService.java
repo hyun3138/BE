@@ -159,7 +159,22 @@ public class ClovaOcrService {
                     info.put("raid_name", val.replaceAll("[:.,\\s]", ""));
                 }
             } else if ("recorded_at".equals(key)) {
-                info.put("recorded_at", val.replaceAll("[()]", ""));
+                String recordedAt = val.replaceAll("[()]", ""); // e.g., "2025..08.1921:16:50"
+                // OCR 결과에서 숫자만 추출합니다. 예: "2025..08.1921:16:50" -> "20250819211650"
+                String digitsOnly = recordedAt.replaceAll("\\D", "");
+
+                String formattedDate = recordedAt; // 파싱에 실패할 경우를 대비해 기본값으로 원본 값을 유지
+                if (digitsOnly.length() >= 14) {
+                    // YYYY.MM.DDHH:MM:SS 형식으로 날짜를 재구성합니다.
+                    String year = digitsOnly.substring(0, 4);
+                    String month = digitsOnly.substring(4, 6);
+                    String day = digitsOnly.substring(6, 8);
+                    String hour = digitsOnly.substring(8, 10);
+                    String minute = digitsOnly.substring(10, 12);
+                    String second = digitsOnly.substring(12, 14);
+                    formattedDate = String.format("%s.%s.%s%s:%s:%s", year, month, day, hour, minute, second);
+                }
+                info.put("recorded_at", formattedDate);
             }
         }
     }
