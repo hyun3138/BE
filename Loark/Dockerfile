@@ -23,7 +23,7 @@ RUN gradle build --no-daemon -x test
 # =================== 2. 실행(Runtime) 스테이지 ===================
 # 실제 애플리케이션을 실행할 환경입니다.
 # JDK보다 훨씬 가벼운 JRE(Java Runtime Environment) 이미지를 사용합니다.
-FROM amazoncorretto:17-alpine-jre
+FROM amazoncorretto:17-jre-alpine
 
 # 작업 디렉터리를 설정합니다.
 WORKDIR /app
