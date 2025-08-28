@@ -5,24 +5,16 @@ FROM gradle:8.5-jdk17-alpine AS builder
 # 작업 디렉터리를 생성합니다.
 WORKDIR /build
 
-# 먼저 의존성 관련 파일만 복사하여 Docker의 레이어 캐시를 활용합니다.
-# 이렇게 하면 소스 코드만 변경되었을 때 의존성을 다시 다운로드하지 않아 속도가 빨라집니다.
-COPY build.gradle settings.gradle /build/
-COPY gradle /build/gradle
+# 프로젝트의 모든 파일(소스코드, 빌드 스크립트 등)을 한번에 복사합니다.
+COPY . .
 
-# 의존성을 다운로드합니다.
-RUN gradle build --no-daemon -x test
-
-# 전체 소스 코드를 복사합니다.
-COPY . /build
-
-# 애플리케이션을 빌드합니다. (-x test로 테스트는 생략)
+# 모든 파일이 복사된 상태에서 애플리케이션을 빌드합니다.
 RUN gradle build --no-daemon -x test
 
 
 # =================== 2. 실행(Runtime) 스테이지 ===================
 # 실제 애플리케이션을 실행할 환경입니다.
-# JDK보다 훨씬 가벼운 JRE(Java Runtime Environment) 이미지를 사용합니다.
+# 가볍고 안정적인 Alpine Linux 기반의 이미지를 사용합니다.
 FROM amazoncorretto:17-alpine
 
 # 작업 디렉터리를 설정합니다.
@@ -35,5 +27,4 @@ COPY --from=builder /build/build/libs/*.jar /app/app.jar
 EXPOSE 8080
 
 # 컨테이너가 시작될 때 실행될 명령어를 정의합니다.
-# java -jar /app/app.jar
 ENTRYPOINT ["java", "-jar", "/app/app.jar"]
