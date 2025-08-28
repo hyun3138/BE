@@ -1,13 +1,39 @@
-# Dockerfile
+# =================== 1. 빌드(Build) 스테이지 ===================
+# Gradle과 JDK 17을 포함한 이미지를 기반으로 빌드 환경을 구성합니다.
+FROM gradle:8.5-jdk17-alpine AS builder
 
-# 베이스 이미지로 Java 17 사용
-FROM openjdk:17-jdk-slim
+# 작업 디렉터리를 생성합니다.
+WORKDIR /build
 
-# ✅ JAR 파일이 위치할 경로를 Loark 디렉터리 내부로 수정합니다.
-ARG JAR_FILE=Loark/build/libs/*.jar
+# 먼저 의존성 관련 파일만 복사하여 Docker의 레이어 캐시를 활용합니다.
+# 이렇게 하면 소스 코드만 변경되었을 때 의존성을 다시 다운로드하지 않아 속도가 빨라집니다.
+COPY build.gradle settings.gradle /build/
+COPY gradle /build/gradle
 
-# 위 경로의 JAR 파일을 app.jar로 복사
-COPY ${JAR_FILE} app.jar
+# 의존성을 다운로드합니다.
+RUN gradle build --no-daemon -x test
 
-# 애플리케이션 실행
-ENTRYPOINT ["java","-jar","/app.jar"]
+# 전체 소스 코드를 복사합니다.
+COPY . /build
+
+# 애플리케이션을 빌드합니다. (-x test로 테스트는 생략)
+RUN gradle build --no-daemon -x test
+
+
+# =================== 2. 실행(Runtime) 스테이지 ===================
+# 실제 애플리케이션을 실행할 환경입니다.
+# JDK보다 훨씬 가벼운 JRE(Java Runtime Environment) 이미지를 사용합니다.
+FROM amazoncorretto:17-alpine-jre
+
+# 작업 디렉터리를 설정합니다.
+WORKDIR /app
+
+# 빌드 스테이지에서 생성된 .jar 파일을 실행 스테이지로 복사합니다.
+COPY --from=builder /build/build/libs/*.jar /app/app.jar
+
+# 컨테이너 외부에서 8080 포트로 접근할 수 있도록 노출합니다.
+EXPOSE 8080
+
+# 컨테이너가 시작될 때 실행될 명령어를 정의합니다.
+# java -jar /app/app.jar
+ENTRYPOINT ["java", "-jar", "/app/app.jar"]
