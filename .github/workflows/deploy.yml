@@ -28,10 +28,12 @@ jobs:
       # 프로젝트 구조에 맞게 working-directory를 설정하세요.
       # 만약 프로젝트 루트에 gradlew가 있다면 working-directory는 필요 없습니다.
       - name: Grant execute permission for gradlew
+        working-directory: ./Loark
         run: chmod +x gradlew
 
       # 4. Gradle로 프로젝트를 빌드합니다.
       - name: Build with Gradle
+        working-directory: ./Loark
         run: ./gradlew build -x test
 
       # 5. AWS ECR에 접근하기 위한 자격 증명을 설정합니다.
@@ -49,6 +51,7 @@ jobs:
 
       # 7. Docker 이미지를 빌드하고 ECR에 푸시합니다.
       - name: Build, tag, and push image to Amazon ECR
+        working-directory: ./Loark
         env:
           ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
           ECR_REPOSITORY: ${{ secrets.ECR_REPOSITORY }}
