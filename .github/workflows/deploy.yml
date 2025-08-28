@@ -4,9 +4,9 @@ name: Loark CI/CD
 
 on:
   push:
-    branches: [ "master" ] # 1. master 브랜치에 push(merge)될 때
+    branches: [ "master" ]
   pull_request:
-    branches: [ "master" ] # 2. master 브랜치로 pull request가 생성/업데이트될 때
+    branches: [ "master" ]
 
 jobs:
   build-and-deploy:
@@ -25,14 +25,14 @@ jobs:
           distribution: 'temurin'
 
       # 3. gradlew 파일에 실행 권한을 부여합니다.
+      # 프로젝트 구조에 맞게 working-directory를 설정하세요.
+      # 만약 프로젝트 루트에 gradlew가 있다면 working-directory는 필요 없습니다.
       - name: Grant execute permission for gradlew
-        working-directory: ./Loark # ✅ Loark 디렉터리로 이동
         run: chmod +x gradlew
 
       # 4. Gradle로 프로젝트를 빌드합니다.
       - name: Build with Gradle
-        working-directory: ./Loark # ✅ Loark 디렉터리로 이동
-        run: ./gradlew build -x test # 테스트는 생략하고 빌드
+        run: ./gradlew build -x test
 
       # 5. AWS ECR에 접근하기 위한 자격 증명을 설정합니다.
       - name: Configure AWS credentials
@@ -57,29 +57,18 @@ jobs:
           docker build -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG .
           docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
 
-      # 8. EC2에 접속하여 배포 스크립트를 실행합니다.
-      - name: Deploy to EC2
+      # 8. [수정됨] Bastion Host를 통해 Private EC2에 접속하여 배포 스크립트를 실행합니다.
+      - name: Deploy to EC2 via Bastion
         uses: appleboy/ssh-action@master
         with:
-          host: ${{ secrets.AWS_EC2_HOST }}
+          host: ${{ secrets.AWS_EC2_HOST }}        # Bastion Host의 Public IP
           username: ${{ secrets.AWS_EC2_USER }}
           key: ${{ secrets.AWS_EC2_KEY }}
           script: |
-            # deploy.sh 스크립트에 필요한 모든 정보를 인자로 전달합니다.
-            # 각 비밀 값은 따옴표로 감싸서 안전하게 전달합니다.
-            sh ~/deploy.sh \
-              "${{ steps.login-ecr.outputs.registry }}/${{ secrets.ECR_REPOSITORY }}:latest" \
-              "${{ secrets.DB_URL }}" \
-              "${{ secrets.DB_USERNAME }}" \
-              "${{ secrets.DB_PASSWORD }}" \
-              "${{ secrets.JWT_SECRET }}" \
-              "${{ secrets.GOOGLE_CLIENT_ID }}" \
-              "${{ secrets.GOOGLE_CLIENT_SECRET }}" \
-              "${{ secrets.AWS_S3_ACCESS_KEY }}" \
-              "${{ secrets.AWS_S3_SECRET_KEY }}" \
-              "${{ secrets.AWS_S3_REGION }}" \
-              "${{ secrets.AWS_S3_IMAGES }}" \
-              "${{ secrets.AWS_S3_JSON }}" \
-              "${{ secrets.CLOVA_OCR_URL }}" \
-              "${{ secrets.CLOVA_OCR_SECRET_KEY }}" \
-              "${{ secrets.LOARK_STAT_API }}"
+            # Bastion 서버에서 Private EC2로 SSH 접속하여 deploy.sh를 실행합니다.
+            # -o StrictHostKeyChecking=no 옵션은 호스트 키 확인을 건너뛰어 CI/CD 환경에 유용합니다.
+            # Bastion 서버의 홈 디렉터리에 Private EC2 접속용 키 파일(예: key.pem)이 미리 복사되어 있어야 합니다.
+            ssh -o StrictHostKeyChecking=no -i ~/key.pem ${{ secrets.AWS_EC2_USER }}@${{ secrets.AWS_EC2_HOST_PRIVATE }} " \
+              sh ~/deploy.sh \
+                '${{ steps.login-ecr.outputs.registry }}/${{ secrets.ECR_REPOSITORY }}:latest'
+            "
