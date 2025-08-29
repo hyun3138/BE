@@ -64,7 +64,14 @@ jobs:
           docker build -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG .
           docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
 
-      # 8. [수정됨] Bastion Host를 통해 Private EC2에 접속하여 배포 스크립트를 실행합니다.
+      # 8. 배포 스텝 이전에 강제로 프록시 설정을 해제합니다.
+      - name: Unset proxy variables
+        run: |
+          unset http_proxy
+          unset https_proxy
+          echo "Proxy environment variables have been unset."
+
+      # 9. Bastion Host를 통해 Private EC2에 접속하여 배포 스-크립트를 실행합니다.
       - name: Deploy to EC2 via Bastion
         uses: appleboy/ssh-action@master
         with:
