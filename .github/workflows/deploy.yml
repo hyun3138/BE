@@ -13,6 +13,10 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
+      # ✅ [디버깅용 스텝 추가] 모든 환경 변수를 출력하여 확인합니다.
+      - name: Print all environment variables
+        run: env | sort
+        
       # 1. GitHub 리포지토리의 코드를 Runner로 가져옵니다.
       - name: Checkout
         uses: actions/checkout@v3
