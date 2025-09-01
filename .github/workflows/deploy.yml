@@ -58,7 +58,7 @@ jobs:
           docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
           echo "image=$ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG" >> $GITHUB_OUTPUT
 
-  #############################################
+#############################################
   # 2. EC2에 접속하여 새 Docker 컨테이너를 실행 #
   #############################################
   deploy-to-ec2:
@@ -66,15 +66,17 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-    - name: Debug SSH Connection  # 👈 이 코드로 완전히 교체합니다.
-      run: |
-        # 1. 시크릿으로 받은 Private Key를 파일로 저장합니다.
-        echo "${{ secrets.SSH_PRIVATE_KEY }}" > private_key.pem
-        chmod 600 private_key.pem
-
-        # 2. 아주 상세한 로그(-vvv)를 출력하며 SSH 접속을 시도합니다.
-        ssh -o StrictHostKeyChecking=no \
-            -vvv \
-            -i private_key.pem \
-            ec2-user@${{ secrets.BASTION_HOST }} \
-            "echo 'SSH 접속 성공!'"
+    - name: Deploy to EC2 via Bastion Host
+      uses: appleboy/ssh-action@master
+      with:
+        host: ${{ secrets.BASTION_HOST }}
+        username: ec2-user
+        key: ${{ secrets.SSH_PRIVATE_KEY }}
+        ssh_agent: true  # 👈 1. SSH Agent Forwarding 옵션을 활성화합니다.
+        script: |
+          # 2. ssh 명령어에 -A 옵션을 추가하여 Forwarding된 Agent를 사용하도록 설정합니다.
+          ssh -o StrictHostKeyChecking=no -A ec2-user@${{ secrets.BACKEND_PRIVATE_IP }} \
+            'bash -s' < <(echo "export IMAGE_URI=${{ needs.build-and-push-to-ecr.outputs.image_uri }} && \
+                                export AWS_REGION=${{ secrets.AWS_REGION }} && \
+                                export SECRETS_MANAGER_ARN=${{ secrets.SECRETS_MANAGER_ARN }} && \
+                                sh ~/deploy.sh")
