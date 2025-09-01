@@ -1,6 +1,6 @@
 # .github/workflows/deploy.yml
 
-name: Loark CI/CD
+name: Loark CI/CD for Private EC2
 
 on:
   push:
@@ -9,76 +9,75 @@ on:
     branches: [ "master" ]
 
 jobs:
-  build-and-deploy:
+  #########################################
+  # 1. Docker 이미지를 빌드하고 ECR에 푸시 #
+  #########################################
+  build-and-push-to-ecr:
     runs-on: ubuntu-latest
+    outputs:
+      image_uri: ${{ steps.build-image.outputs.image }} # 다음 Job에서 사용할 이미지 URI를 출력으로 지정
 
     steps:
-      # ✅ [디버깅용 스텝 추가] 모든 환경 변수를 출력하여 확인합니다.
-      - name: Print all environment variables
-        run: env | sort
-        
-      # 1. GitHub 리포지토리의 코드를 Runner로 가져옵니다.
       - name: Checkout
         uses: actions/checkout@v3
 
-      # 2. JDK 17을 설치합니다.
       - name: Set up JDK 17
         uses: actions/setup-java@v3
         with:
           java-version: '17'
           distribution: 'temurin'
 
-      # 3. gradlew 파일에 실행 권한을 부여합니다.
-      # 프로젝트 구조에 맞게 working-directory를 설정하세요.
-      # 만약 프로젝트 루트에 gradlew가 있다면 working-directory는 필요 없습니다.
+      # working-directory를 사용하여 Loark 폴더 내부에서 명령어 실행
       - name: Grant execute permission for gradlew
         working-directory: ./Loark
         run: chmod +x gradlew
 
-      # 4. Gradle로 프로젝트를 빌드합니다.
       - name: Build with Gradle
         working-directory: ./Loark
         run: ./gradlew build -x test
 
-      # 5. AWS ECR에 접근하기 위한 자격 증명을 설정합니다.
       - name: Configure AWS credentials
-        uses: aws-actions/configure-aws-credentials@v1
+        uses: aws-actions/configure-aws-credentials@v2
         with:
           aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region: ${{ secrets.AWS_REGION }}
 
-      # 6. AWS ECR에 로그인합니다.
       - name: Login to Amazon ECR
         id: login-ecr
         uses: aws-actions/amazon-ecr-login@v1
 
-      # 7. Docker 이미지를 빌드하고 ECR에 푸시합니다.
+      # Dockerfile이 Loark 폴더 안에 있다고 가정하고 빌드 경로를 ./Loark로 지정
       - name: Build, tag, and push image to Amazon ECR
-        working-directory: ./Loark
+        id: build-image
         env:
           ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
           ECR_REPOSITORY: ${{ secrets.ECR_REPOSITORY }}
-          IMAGE_TAG: latest
+          IMAGE_TAG: ${{ github.sha }} # 'latest' 대신 고유한 커밋 해시를 태그로 사용
         run: |
-          docker build -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG .
+          docker build -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG ./Loark
           docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
+          echo "image=$ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG" >> $GITHUB_OUTPUT
 
-      # 8. [최종 수정] appleboy/ssh-action 대신 run 스텝으로 직접 SSH 실행
-      - name: Deploy to EC2 via Bastion (Manual SSH)
-        run: |
-          # 1. GitHub Secret에 저장된 SSH 키를 임시 파일로 생성합니다.
-          echo "${{ secrets.AWS_EC2_KEY }}" > private_key.pem
-          chmod 600 private_key.pem
-          
-          # 2. 만약의 경우를 대비해 프록시 변수를 다시 한번 강제 해제합니다.
-          unset http_proxy https_proxy
-          
-          # 3. Bastion을 통해 Private EC2로 SSH 명령을 실행합니다.
-          # ssh-action 대신 직접 ssh 명령어를 사용합니다. -i 옵션으로 방금 생성한 키 파일을 지정합니다.
-          ssh -o StrictHostKeyChecking=no -i private_key.pem ${{ secrets.AWS_EC2_USER }}@${{ secrets.AWS_EC2_HOST }} " \
-            ssh -o StrictHostKeyChecking=no -i ~/key.pem ${{ secrets.AWS_EC2_USER }}@${{ secrets.AWS_EC2_HOST_PRIVATE }} ' \
-              sh ~/deploy.sh \"${{ steps.login-ecr.outputs.registry }}/${{ secrets.ECR_REPOSITORY }}:latest\"
-            '
-          "
+  #############################################
+  # 2. EC2에 접속하여 새 Docker 컨테이너를 실행 #
+  #############################################
+  deploy-to-ec2:
+    needs: build-and-push-to-ecr # build-and-push-to-ecr 작업이 성공해야 실행
+    runs-on: ubuntu-latest
 
+    steps:
+    - name: Deploy to EC2 via Bastion Host
+      uses: appleboy/ssh-action@master
+      with:
+        host: ${{ secrets.BASTION_HOST }} # Bastion 호스트에 접속
+        username: ec2-user
+        key: ${{ secrets.SSH_PRIVATE_KEY }}
+        script: |
+          # Bastion 호스트를 통해 Private EC2 인스턴스로 SSH 접속하여 배포 스크립트 실행
+          # 이전 Job에서 생성한 이미지 URI를 인자로 전달
+          ssh -o StrictHostKeyChecking=no ec2-user@${{ secrets.BACKEND_PRIVATE_IP }} \
+            'bash -s' < <(echo "export IMAGE_URI=${{ needs.build-and-push-to-ecr.outputs.image_uri }} && \
+                                export AWS_REGION=${{ secrets.AWS_REGION }} && \
+                                export SECRETS_MANAGER_ARN=${{ secrets.SECRETS_MANAGER_ARN }} && \
+                                sh ~/deploy.sh")
