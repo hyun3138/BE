@@ -14,6 +14,8 @@ import java.time.Instant;
 @NoArgsConstructor
 @AllArgsConstructor
 public class FactGateMetricsDto {
+    private Long id; // id 필드 추가
+
     // 기존 필드
     private String raidName;
     private Short gateNumber;
