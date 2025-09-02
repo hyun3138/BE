@@ -20,6 +20,25 @@ public class FactGateMetricsRepository {
     @PersistenceContext
     private EntityManager entityManager;
 
+    public Optional<String> findCharacterNameById(Long id) {
+        String sql = "SELECT character_id FROM statistic.fact_gate_metrics WHERE id = :id";
+        try {
+            String characterName = (String) entityManager.createNativeQuery(sql, String.class)
+                    .setParameter("id", id)
+                    .getSingleResult();
+            return Optional.ofNullable(characterName);
+        } catch (jakarta.persistence.NoResultException e) {
+            return Optional.empty();
+        }
+    }
+
+    public int deleteById(Long id) {
+        String sql = "DELETE FROM statistic.fact_gate_metrics WHERE id = :id";
+        return entityManager.createNativeQuery(sql)
+                .setParameter("id", id)
+                .executeUpdate();
+    }
+
     public Optional<FactGateMetricsDto> findLatestByCharacterName(String characterName) {
         String sql = """
             SELECT id, raid_name, gate_number, difficulty, play_time, ts
@@ -184,14 +203,6 @@ public class FactGateMetricsRepository {
                         .supportAssistTotalDamage(row[19] != null ? new BigDecimal(row[19].toString()) : null)
                         .build())
                 .collect(Collectors.toList());
-    }
-
-    public int deleteByIdAndUploader(Long id, Long uploaderUserId) {
-        String sql = "DELETE FROM statistic.fact_gate_metrics WHERE id = :id AND uploader_user_id = :uploaderUserId";
-        return entityManager.createNativeQuery(sql)
-                .setParameter("id", id)
-                .setParameter("uploaderUserId", uploaderUserId)
-                .executeUpdate();
     }
 
     /**

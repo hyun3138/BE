@@ -12,6 +12,7 @@ import com.example.Loark.Service.LostarkApiClient;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import lombok.RequiredArgsConstructor;
 import org.springframework.format.annotation.DateTimeFormat;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.transaction.annotation.Transactional;
@@ -19,6 +20,7 @@ import org.springframework.web.bind.annotation.*;
 
 import java.time.LocalDate;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 
 import static com.example.Loark.Service.CharacterMapper.toDto;
@@ -63,6 +65,26 @@ public class CharacterController {
             return ResponseEntity.ok(combatRecords);
         } catch (IllegalStateException e) {
             return ResponseEntity.badRequest().body(e.getMessage());
+        }
+    }
+
+    /**
+     * 특정 전투 기록을 삭제합니다.
+     */
+    @DeleteMapping("/combat-records/{recordId}")
+    public ResponseEntity<?> deleteCombatRecord(@PathVariable Long recordId,
+                                                @AuthenticationPrincipal User me) {
+        if (me == null) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(Map.of("error", "인증이 필요합니다."));
+        }
+
+        try {
+            characterService.deleteCharacterCombatRecord(recordId, me);
+            return ResponseEntity.ok().body(Map.of("message", "전투 기록이 성공적으로 삭제되었습니다."));
+        } catch (IllegalStateException e) {
+            return ResponseEntity.status(HttpStatus.NOT_FOUND).body(Map.of("error", e.getMessage()));
+        } catch (Exception e) {
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(Map.of("error", "기록 삭제 중 오류가 발생했습니다: " + e.getMessage()));
         }
     }
 

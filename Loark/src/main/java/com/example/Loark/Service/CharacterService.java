@@ -55,6 +55,28 @@ public class CharacterService {
         return factGateMetricsRepository.findAllByCharacterName(characterName);
     }
 
+    /**
+     * 특정 전투 기록을 삭제합니다.
+     * @param recordId 삭제할 전투 기록의 ID
+     * @param currentUser 요청을 보낸 로그인된 사용자
+     * @throws IllegalStateException 삭제할 기록이 없거나 권한이 없는 경우
+     */
+    @Transactional
+    public void deleteCharacterCombatRecord(Long recordId, User currentUser) {
+        // 1. ID로 전투 기록에 저장된 캐릭터 이름을 조회합니다.
+        String characterName = factGateMetricsRepository.findCharacterNameById(recordId)
+                .orElseThrow(() -> new IllegalStateException("삭제할 전투 기록을 찾을 수 없습니다."));
+
+        // 2. 해당 캐릭터가 현재 로그인한 사용자의 소유인지 확인합니다. (권한 검사)
+        boolean isOwner = characterRepo.existsByUserAndName(currentUser, characterName);
+        if (!isOwner) {
+            throw new IllegalStateException("해당 전투 기록을 삭제할 권한이 없습니다.");
+        }
+
+        // 3. 권한이 확인되면 기록을 삭제합니다.
+        factGateMetricsRepository.deleteById(recordId);
+    }
+
     @Transactional(readOnly = true)
     public Optional<CharacterSpec> getLatestCharacterSpec(String characterName) {
         Optional<Character> characterOpt = characterRepo.findByName(characterName);
@@ -193,8 +215,8 @@ public class CharacterService {
                 targetSpec.getCombatPower() != null ? targetSpec.getCombatPower().toString() : "N/A");
 
         String sanitizedCharacterInfo = fullCharacterInfo
-                .replaceAll("\\s*/\\s*", "_")
-                .replaceAll("[\\s()]", "");
+                .replaceAll("\s*/\s*", "_")
+                .replaceAll("[\s()]", "");
 
         String uploadTimestamp = LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyyMMddHHmmss"));
 
