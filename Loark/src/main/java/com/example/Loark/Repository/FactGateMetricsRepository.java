@@ -20,9 +20,54 @@ public class FactGateMetricsRepository {
     @PersistenceContext
     private EntityManager entityManager;
 
+    public Optional<String> findCharacterNameById(Long id) {
+        String sql = "SELECT character_id FROM statistic.fact_gate_metrics WHERE id = :id";
+        try {
+            String characterName = (String) entityManager.createNativeQuery(sql, String.class)
+                    .setParameter("id", id)
+                    .getSingleResult();
+            return Optional.ofNullable(characterName);
+        } catch (jakarta.persistence.NoResultException e) {
+            return Optional.empty();
+        }
+    }
+
+    public int deleteById(Long id) {
+        String sql = "DELETE FROM statistic.fact_gate_metrics WHERE id = :id";
+        return entityManager.createNativeQuery(sql)
+                .setParameter("id", id)
+                .executeUpdate();
+    }
+
+    public Optional<FactGateMetricsDto> findLatestByCharacterName(String characterName) {
+        String sql = """
+            SELECT id, raid_name, gate_number, difficulty, play_time, ts
+            FROM statistic.fact_gate_metrics
+            WHERE character_id = :characterName AND party_run_id IS NULL
+            ORDER BY ts DESC
+            LIMIT 1
+            """;
+        try {
+            Object[] result = (Object[]) entityManager.createNativeQuery(sql, Object[].class)
+                    .setParameter("characterName", characterName)
+                    .getSingleResult();
+
+            return Optional.of(FactGateMetricsDto.builder()
+                    .id(((Number) result[0]).longValue())
+                    .raidName((String) result[1])
+                    .gateNumber(((Number) result[2]).shortValue())
+                    .difficulty((String) result[3])
+                    .playTime(toDuration(result[4])) // 변환 메소드 사용
+                    .ts(result[5] instanceof Instant ? (Instant) result[5] : null)
+                    .build());
+        } catch (jakarta.persistence.NoResultException e) {
+            return Optional.empty();
+        }
+    }
+
     public Optional<FactGateMetricsDto> findLatestByCharacterNameAndRaidName(String characterName, String raidName) {
         String sql = """
-            SELECT raid_name, gate_number, difficulty, play_time, ts
+            SELECT id, raid_name, gate_number, difficulty, play_time, ts
             FROM statistic.fact_gate_metrics
             WHERE character_id = :characterName AND raid_name = :raidName
             ORDER BY ts DESC
@@ -35,11 +80,12 @@ public class FactGateMetricsRepository {
                     .getSingleResult();
 
             return Optional.of(FactGateMetricsDto.builder()
-                    .raidName((String) result[0])
-                    .gateNumber(((Number) result[1]).shortValue())
-                    .difficulty((String) result[2])
-                    .playTime(toDuration(result[3])) // 변환 메소드 사용
-                    .ts(result[4] instanceof Instant ? (Instant) result[4] : null)
+                    .id(((Number) result[0]).longValue())
+                    .raidName((String) result[1])
+                    .gateNumber(((Number) result[2]).shortValue())
+                    .difficulty((String) result[3])
+                    .playTime(toDuration(result[4])) // 변환 메소드 사용
+                    .ts(result[5] instanceof Instant ? (Instant) result[5] : null)
                     .build());
         } catch (jakarta.persistence.NoResultException e) {
             return Optional.empty();
@@ -71,7 +117,7 @@ public class FactGateMetricsRepository {
     public List<FactGateMetricsDto> findAllByPartyRunId(UUID partyRunId) {
         String sql = """
             SELECT
-                raid_name, gate_number, difficulty, play_time,
+                id, raid_name, gate_number, difficulty, play_time,
                 character_id, class_name, role, dps, synergy_efficiency_rate,
                 back_attack_rate, head_attack_rate, crit_rate, total_damage,
                 support_dps, support_attack_buff_effectiveness_rate,
@@ -89,25 +135,26 @@ public class FactGateMetricsRepository {
 
         return results.stream()
                 .map(row -> FactGateMetricsDto.builder()
-                        .raidName((String) row[0])
-                        .gateNumber(row[1] != null ? ((Number) row[1]).shortValue() : null)
-                        .difficulty((String) row[2])
-                        .playTime(toDuration(row[3])) // 변환 메소드 사용
-                        .characterId((String) row[4])
-                        .className((String) row[5])
-                        .role((String) row[6])
-                        .dps(row[7] != null ? ((Number) row[7]).doubleValue() : null)
-                        .synergyEfficiencyRate(row[8] != null ? ((Number) row[8]).doubleValue() : null)
-                        .backAttackRate(row[9] != null ? ((Number) row[9]).doubleValue() : null)
-                        .headAttackRate(row[10] != null ? ((Number) row[10]).doubleValue() : null)
-                        .critRate(row[11] != null ? ((Number) row[11]).doubleValue() : null)
-                        .totalDamage(row[12] != null ? new BigDecimal(row[12].toString()) : null)
-                        .supportDps(row[13] != null ? ((Number) row[13]).doubleValue() : null)
-                        .supportAttackBuffEffectivenessRate(row[14] != null ? ((Number) row[14]).doubleValue() : null)
-                        .supportBrandBuffEffectivenessRate(row[15] != null ? ((Number) row[15]).doubleValue() : null)
-                        .supportDamageBuff2EffectivenessRate(row[16] != null ? ((Number) row[16]).doubleValue() : null)
-                        .supportDamageIncreaseEffectivenessRate(row[17] != null ? ((Number) row[17]).doubleValue() : null)
-                        .supportAssistTotalDamage(row[18] != null ? new BigDecimal(row[18].toString()) : null)
+                        .id(row[0] != null ? ((Number) row[0]).longValue() : null)
+                        .raidName((String) row[1])
+                        .gateNumber(row[2] != null ? ((Number) row[2]).shortValue() : null)
+                        .difficulty((String) row[3])
+                        .playTime(toDuration(row[4])) // 변환 메소드 사용
+                        .characterId((String) row[5])
+                        .className((String) row[6])
+                        .role((String) row[7])
+                        .dps(row[8] != null ? ((Number) row[8]).doubleValue() : null)
+                        .synergyEfficiencyRate(row[9] != null ? ((Number) row[9]).doubleValue() : null)
+                        .backAttackRate(row[10] != null ? ((Number) row[10]).doubleValue() : null)
+                        .headAttackRate(row[11] != null ? ((Number) row[11]).doubleValue() : null)
+                        .critRate(row[12] != null ? ((Number) row[12]).doubleValue() : null)
+                        .totalDamage(row[13] != null ? new BigDecimal(row[13].toString()) : null)
+                        .supportDps(row[14] != null ? ((Number) row[14]).doubleValue() : null)
+                        .supportAttackBuffEffectivenessRate(row[15] != null ? ((Number) row[15]).doubleValue() : null)
+                        .supportBrandBuffEffectivenessRate(row[16] != null ? ((Number) row[16]).doubleValue() : null)
+                        .supportDamageBuff2EffectivenessRate(row[17] != null ? ((Number) row[17]).doubleValue() : null)
+                        .supportDamageIncreaseEffectivenessRate(row[18] != null ? ((Number) row[18]).doubleValue() : null)
+                        .supportAssistTotalDamage(row[19] != null ? new BigDecimal(row[19].toString()) : null)
                         .build())
                 .collect(Collectors.toList());
     }
@@ -115,7 +162,7 @@ public class FactGateMetricsRepository {
     public List<FactGateMetricsDto> findAllByCharacterName(String characterName) {
         String sql = """
             SELECT
-                raid_name, gate_number, difficulty, play_time,
+                id, raid_name, gate_number, difficulty, play_time,
                 character_id, class_name, role, dps, synergy_efficiency_rate,
                 back_attack_rate, head_attack_rate, crit_rate, total_damage,
                 support_dps, support_attack_buff_effectiveness_rate,
@@ -134,25 +181,26 @@ public class FactGateMetricsRepository {
 
         return results.stream()
                 .map(row -> FactGateMetricsDto.builder()
-                        .raidName((String) row[0])
-                        .gateNumber(row[1] != null ? ((Number) row[1]).shortValue() : null)
-                        .difficulty((String) row[2])
-                        .playTime(toDuration(row[3]))
-                        .characterId((String) row[4])
-                        .className((String) row[5])
-                        .role((String) row[6])
-                        .dps(row[7] != null ? ((Number) row[7]).doubleValue() : null)
-                        .synergyEfficiencyRate(row[8] != null ? ((Number) row[8]).doubleValue() : null)
-                        .backAttackRate(row[9] != null ? ((Number) row[9]).doubleValue() : null)
-                        .headAttackRate(row[10] != null ? ((Number) row[10]).doubleValue() : null)
-                        .critRate(row[11] != null ? ((Number) row[11]).doubleValue() : null)
-                        .totalDamage(row[12] != null ? new BigDecimal(row[12].toString()) : null)
-                        .supportDps(row[13] != null ? ((Number) row[13]).doubleValue() : null)
-                        .supportAttackBuffEffectivenessRate(row[14] != null ? ((Number) row[14]).doubleValue() : null)
-                        .supportBrandBuffEffectivenessRate(row[15] != null ? ((Number) row[15]).doubleValue() : null)
-                        .supportDamageBuff2EffectivenessRate(row[16] != null ? ((Number) row[16]).doubleValue() : null)
-                        .supportDamageIncreaseEffectivenessRate(row[17] != null ? ((Number) row[17]).doubleValue() : null)
-                        .supportAssistTotalDamage(row[18] != null ? new BigDecimal(row[18].toString()) : null)
+                        .id(row[0] != null ? ((Number) row[0]).longValue() : null)
+                        .raidName((String) row[1])
+                        .gateNumber(row[2] != null ? ((Number) row[2]).shortValue() : null)
+                        .difficulty((String) row[3])
+                        .playTime(toDuration(row[4]))
+                        .characterId((String) row[5])
+                        .className((String) row[6])
+                        .role((String) row[7])
+                        .dps(row[8] != null ? ((Number) row[8]).doubleValue() : null)
+                        .synergyEfficiencyRate(row[9] != null ? ((Number) row[9]).doubleValue() : null)
+                        .backAttackRate(row[10] != null ? ((Number) row[10]).doubleValue() : null)
+                        .headAttackRate(row[11] != null ? ((Number) row[11]).doubleValue() : null)
+                        .critRate(row[12] != null ? ((Number) row[12]).doubleValue() : null)
+                        .totalDamage(row[13] != null ? new BigDecimal(row[13].toString()) : null)
+                        .supportDps(row[14] != null ? ((Number) row[14]).doubleValue() : null)
+                        .supportAttackBuffEffectivenessRate(row[15] != null ? ((Number) row[15]).doubleValue() : null)
+                        .supportBrandBuffEffectivenessRate(row[16] != null ? ((Number) row[16]).doubleValue() : null)
+                        .supportDamageBuff2EffectivenessRate(row[17] != null ? ((Number) row[17]).doubleValue() : null)
+                        .supportDamageIncreaseEffectivenessRate(row[18] != null ? ((Number) row[18]).doubleValue() : null)
+                        .supportAssistTotalDamage(row[19] != null ? new BigDecimal(row[19].toString()) : null)
                         .build())
                 .collect(Collectors.toList());
     }

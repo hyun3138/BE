@@ -24,7 +24,7 @@ public class PartyRunService {
     private final FactGateMetricsRepository factGateMetricsRepository;
 
     @Transactional
-    public PartyRun createPartyRun(UUID partyId, String raidName, User creator) {
+    public PartyRun createPartyRun(UUID partyId, User creator) {
         // 1. 파티 조회 및 파티장 권한 확인
         Party party = partyRepository.findById(partyId)
                 .orElseThrow(() -> new IllegalStateException("존재하지 않는 파티입니다."));
@@ -33,18 +33,21 @@ public class PartyRunService {
             throw new IllegalStateException("파티장만 레이드를 생성할 수 있습니다.");
         }
 
-        // 2. 파티장의 대표 캐릭터 이름으로 fact 테이블에서 최신 레이드 정보 조회
-        String characterName = creator.getMainCharacter();
-        FactGateMetricsDto factData = factGateMetricsRepository.findLatestByCharacterNameAndRaidName(characterName, raidName)
-                .orElseThrow(() -> new IllegalStateException("해당 캐릭터와 레이드에 대한 정보를 찾을 수 없습니다."));
+        // 2. 파티장의 대표 캐릭터 이름으로 아직 처리되지 않은 최신 전투 기록 조회
+        String leaderCharacterName = creator.getMainCharacter();
+        if (leaderCharacterName == null || leaderCharacterName.isBlank()) {
+            throw new IllegalStateException("공대장의 대표 캐릭터가 설정되어 있지 않습니다.");
+        }
+        FactGateMetricsDto leaderRecord = factGateMetricsRepository.findLatestByCharacterName(leaderCharacterName)
+                .orElseThrow(() -> new IllegalStateException("공대장의 최신 전투 기록을 찾을 수 없습니다. 먼저 전투 분석 정보를 저장해주세요."));
 
         // 3. PartyRun 생성 및 저장
         PartyRun partyRun = PartyRun.builder()
                 .party(party)
-                .raidName(factData.getRaidName())
-                .gateNumber(factData.getGateNumber())
-                .difficulty(factData.getDifficulty())
-                .playTime(factData.getPlayTime())
+                .raidName(leaderRecord.getRaidName())
+                .gateNumber(leaderRecord.getGateNumber())
+                .difficulty(leaderRecord.getDifficulty())
+                .playTime(leaderRecord.getPlayTime())
                 .createdBy(creator)
                 .build();
         partyRunRepository.save(partyRun);
@@ -67,27 +70,38 @@ public class PartyRunService {
         partyRunMemberRepository.saveAll(runMembers);
 
         // 5. 생성된 party_run_id를 fact_gate_metrics 테이블에 업데이트 (오차 범위 적용)
-        if (factData.getPlayTime() != null && !currentMembers.isEmpty()) {
+        if (leaderRecord.getPlayTime() != null && !currentMembers.isEmpty()) {
             List<String> memberNicknames = currentMembers.stream()
                     .map(member -> member.getUser().getMainCharacter())
+                    .filter(name -> name != null && !name.isBlank())
                     .collect(Collectors.toList());
 
-            // play_time을 기준으로 ±3초의 오차 범위를 설정
-            Duration centerPlayTime = factData.getPlayTime();
-            Duration startTimeDuration = centerPlayTime.minusSeconds(3);
-            Duration endTimeDuration = centerPlayTime.plusSeconds(3);
+            if (memberNicknames.isEmpty()) {
+                // 파티원들의 대표 캐릭터가 설정되지 않은 경우, 공대장 기록만 업데이트하고 종료
+                factGateMetricsRepository.updatePartyRunId(
+                        partyRun.getPartyRunId(),
+                        leaderRecord.getRaidName(),
+                        leaderRecord.getGateNumber(),
+                        leaderRecord.getDifficulty(),
+                        leaderRecord.getPlayTime().toMillis() / 1000.0 - 1,
+                        leaderRecord.getPlayTime().toMillis() / 1000.0 + 1,
+                        List.of(leaderCharacterName)
+                );
+                return partyRun;
+            }
 
-            // Duration을 double 초 단위로 변환
-            double startSeconds = startTimeDuration.toMillis() / 1000.0;
-            double endSeconds = endTimeDuration.toMillis() / 1000.0;
+            // play_time을 기준으로 ±3초의 오차 범위를 설정
+            Duration centerPlayTime = leaderRecord.getPlayTime();
+            double startSeconds = centerPlayTime.minusSeconds(3).toMillis() / 1000.0;
+            double endSeconds = centerPlayTime.plusSeconds(3).toMillis() / 1000.0;
 
             factGateMetricsRepository.updatePartyRunId(
                     partyRun.getPartyRunId(),
-                    factData.getRaidName(),
-                    factData.getGateNumber(),
-                    factData.getDifficulty(),
-                    startSeconds, // double 초 전달
-                    endSeconds,   // double 초 전달
+                    leaderRecord.getRaidName(),
+                    leaderRecord.getGateNumber(),
+                    leaderRecord.getDifficulty(),
+                    startSeconds,
+                    endSeconds,
                     memberNicknames
             );
         }
