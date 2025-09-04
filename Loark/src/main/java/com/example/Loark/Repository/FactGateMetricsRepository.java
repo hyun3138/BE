@@ -7,8 +7,11 @@ import org.postgresql.util.PGInterval;
 import org.springframework.stereotype.Repository;
 
 import java.math.BigDecimal;
+import java.sql.Array;
+import java.sql.SQLException;
 import java.time.Duration;
 import java.time.Instant;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -122,7 +125,8 @@ public class FactGateMetricsRepository {
                 back_attack_rate, head_attack_rate, crit_rate, total_damage,
                 support_dps, support_attack_buff_effectiveness_rate,
                 support_brand_buff_effectiveness_rate, support_damage_buff2_effectiveness_rate,
-                support_damage_increase_effectiveness_rate, support_assist_total_damage
+                support_damage_increase_effectiveness_rate, support_assist_total_damage,
+                counter_success, stagger_damage, party_heal_amount
             FROM
                 statistic.fact_gate_metrics
             WHERE
@@ -155,6 +159,9 @@ public class FactGateMetricsRepository {
                         .supportDamageBuff2EffectivenessRate(row[17] != null ? ((Number) row[17]).doubleValue() : null)
                         .supportDamageIncreaseEffectivenessRate(row[18] != null ? ((Number) row[18]).doubleValue() : null)
                         .supportAssistTotalDamage(row[19] != null ? new BigDecimal(row[19].toString()) : null)
+                        .counterSuccess(toLongList(row[20]))
+                        .staggerDamage(toLongList(row[21]))
+                        .partyHealAmount(toDoubleList(row[22]))
                         .build())
                 .collect(Collectors.toList());
     }
@@ -167,7 +174,8 @@ public class FactGateMetricsRepository {
                 back_attack_rate, head_attack_rate, crit_rate, total_damage,
                 support_dps, support_attack_buff_effectiveness_rate,
                 support_brand_buff_effectiveness_rate, support_damage_buff2_effectiveness_rate,
-                support_damage_increase_effectiveness_rate, support_assist_total_damage
+                support_damage_increase_effectiveness_rate, support_assist_total_damage,
+                counter_success, stagger_damage, party_heal_amount
             FROM
                 statistic.fact_gate_metrics
             WHERE
@@ -201,6 +209,9 @@ public class FactGateMetricsRepository {
                         .supportDamageBuff2EffectivenessRate(row[17] != null ? ((Number) row[17]).doubleValue() : null)
                         .supportDamageIncreaseEffectivenessRate(row[18] != null ? ((Number) row[18]).doubleValue() : null)
                         .supportAssistTotalDamage(row[19] != null ? new BigDecimal(row[19].toString()) : null)
+                        .counterSuccess(toLongList(row[20]))
+                        .staggerDamage(toLongList(row[21]))
+                        .partyHealAmount(toDoubleList(row[22]))
                         .build())
                 .collect(Collectors.toList());
     }
@@ -221,6 +232,44 @@ public class FactGateMetricsRepository {
         }
         if (obj instanceof Duration) {
             return (Duration) obj;
+        }
+        return null;
+    }
+
+    private List<Long> toLongList(Object obj) {
+        if (obj == null) return null;
+        try {
+            if (obj instanceof Array) {
+                Object array = ((Array) obj).getArray();
+                if (array instanceof Long[]) {
+                    return Arrays.asList((Long[]) array);
+                } else if (array instanceof long[]) { // For primitive arrays
+                    return Arrays.stream((long[]) array).boxed().collect(Collectors.toList());
+                } else if (array instanceof Integer[]) {
+                    return Arrays.stream((Integer[]) array).map(Integer::longValue).collect(Collectors.toList());
+                }
+            }
+        } catch (SQLException e) {
+            // Log this exception
+            return null;
+        }
+        return null;
+    }
+
+    private List<Double> toDoubleList(Object obj) {
+        if (obj == null) return null;
+        try {
+            if (obj instanceof Array) {
+                Object array = ((Array) obj).getArray();
+                if (array instanceof Double[]) {
+                    return Arrays.asList((Double[]) array);
+                } else if (array instanceof double[]) { // For primitive arrays
+                    return Arrays.stream((double[]) array).boxed().collect(Collectors.toList());
+                }
+            }
+        } catch (SQLException e) {
+            // Log this exception
+            return null;
         }
         return null;
     }
