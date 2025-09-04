@@ -58,33 +58,33 @@ jobs:
           docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
           echo "image=$ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG" >> $GITHUB_OUTPUT
 
-#############################################
-  # 2. EC2에 접속하여 새 Docker 컨테이너를 실행 #
   #############################################
-  deploy-to-ec2:
-    needs: build-and-push-to-ecr
-    runs-on: ubuntu-latest
+  # 2. EC2에 접속하여 새 Docker 컨테이너를 실행 #
+  #############################################
+  deploy-to-ec2:
+    needs: build-and-push-to-ecr
+    runs-on: ubuntu-latest
 
-    steps:
-    - name: Deploy to EC2 via Bastion using Manual SSH
-      run: |
-        # 1. ssh-agent를 시작합니다. Agent Forwarding에 필수입니다.
-        eval "$(ssh-agent -s)"
+    steps:
+    - name: Deploy to EC2 via Bastion using Manual SSH
+      run: |
+        # 1. ssh-agent를 시작합니다.
+        eval "$(ssh-agent -s)"
 
-        # 2. GitHub Secret에서 받은 Private Key를 파일로 저장합니다.
-        echo "${{ secrets.SSH_PRIVATE_KEY }}" > private_key.pem
-        chmod 600 private_key.pem
+        # 2. Private Key를 파일로 저장합니다.
+        echo "${{ secrets.SSH_PRIVATE_KEY }}" > private_key.pem
+        chmod 600 private_key.pem
 
-        # 3. ssh-agent에 Private Key를 추가합니다.
-        ssh-add private_key.pem
+        # 3. ssh-agent에 Private Key를 추가합니다.
+        ssh-add private_key.pem
 
-        # 4. Agent Forwarding(-A)을 사용하여 Bastion Host에 접속한 후,
-        #    그 안에서 다시 Backend 서버로 접속하여 배포 스크립트를 실행합니다.
-        ssh -o StrictHostKeyChecking=no -A ec2-user@${{ secrets.BASTION_HOST }} << 'ENDSSH'
-          echo "Successfully connected to Bastion Host. Now connecting to Backend..."
-          ssh -o StrictHostKeyChecking=no -A ec2-user@${{ secrets.BACKEND_PRIVATE_IP }} \
-            'bash -s' < <(echo "export IMAGE_URI=${{ needs.build-and-push-to-ecr.outputs.image_uri }} && \
-                                export AWS_REGION=${{ secrets.AWS_REGION }} && \
-                                export SECRETS_MANAGER_ARN=${{ secrets.SECRETS_MANAGER_ARN }} && \
-                                sh ~/deploy.sh")
-        ENDSSH
+        # 4. Bastion Host를 통해 Backend 서버에 접속하여 배포 스크립트를 실행합니다.
+        # ✅ 'ENDSSH' 에서 작은따옴표를 제거합니다.
+        ssh -o StrictHostKeyChecking=no -A ec2-user@${{ secrets.BASTION_HOST }} << ENDSSH
+          echo "Successfully connected to Bastion Host. Now connecting to Backend..."
+          ssh -o StrictHostKeyChecking=no -A ec2-user@${{ secrets.BACKEND_PRIVATE_IP }} \
+            'bash -s' < <(echo "export IMAGE_URI=${{ needs.build-and-push-to-ecr.outputs.image_uri }} && \
+                                export AWS_REGION=${{ secrets.AWS_REGION }} && \
+                                export SECRETS_MANAGER_ARN=${{ secrets.SECRETS_MANAGER_ARN }} && \
+                                sh ~/deploy.sh")
+        ENDSSH
