@@ -58,7 +58,7 @@ jobs:
           docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
           echo "image=$ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG" >> $GITHUB_OUTPUT
 
-  #############################################
+#############################################
   # 2. EC2에 접속하여 새 Docker 컨테이너를 실행 #
   #############################################
   deploy-to-ec2:
