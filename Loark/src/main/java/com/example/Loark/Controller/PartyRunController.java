@@ -5,7 +5,6 @@ import com.example.Loark.DTO.PartyRunResponseDto;
 import com.example.Loark.Entity.PartyRun;
 import com.example.Loark.Entity.User;
 import com.example.Loark.Service.PartyRunService;
-import lombok.Data;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
@@ -21,20 +20,14 @@ public class PartyRunController {
 
     private final PartyRunService partyRunService;
 
-    @Data
-    static class CreatePartyRunRequest {
-        private String raidName;
-    }
-
     @PostMapping
     public ResponseEntity<?> createPartyRun(@PathVariable UUID partyId,
-                                            @RequestBody CreatePartyRunRequest request,
                                             @AuthenticationPrincipal User me) {
         if (me == null) {
             return ResponseEntity.status(401).body("인증이 필요합니다.");
         }
         try {
-            PartyRun partyRun = partyRunService.createPartyRun(partyId, request.getRaidName(), me);
+            PartyRun partyRun = partyRunService.createPartyRun(partyId, me);
             PartyRunResponseDto responseDto = PartyRunResponseDto.fromEntity(partyRun);
             return ResponseEntity.ok(responseDto);
         } catch (IllegalStateException e) {
