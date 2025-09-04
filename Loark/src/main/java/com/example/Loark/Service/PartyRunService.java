@@ -23,6 +23,17 @@ public class PartyRunService {
     private final PartyRunMemberRepository partyRunMemberRepository;
     private final FactGateMetricsRepository factGateMetricsRepository;
 
+    public List<PartyRun> getPartyRunsByPartyId(UUID partyId, User currentUser) {
+        // 1. 사용자가 해당 파티의 멤버인지 확인 (권한 검사)
+        boolean isMember = partyMemberRepository.existsByParty_PartyIdAndUser_UserIdAndLeftAtIsNull(partyId, currentUser.getUserId());
+        if (!isMember) {
+            throw new IllegalStateException("해당 파티의 활동 기록을 조회할 권한이 없습니다.");
+        }
+
+        // 2. 권한이 확인되면, 파티의 모든 활동 기록을 최신순으로 조회하여 반환
+        return partyRunRepository.findByParty_PartyIdOrderByCreatedAtDesc(partyId);
+    }
+
     @Transactional
     public PartyRun createPartyRun(UUID partyId, User creator) {
         // 1. 파티 조회 및 파티장 권한 확인

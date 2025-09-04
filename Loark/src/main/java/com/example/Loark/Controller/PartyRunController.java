@@ -12,6 +12,7 @@ import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
 import java.util.UUID;
+import java.util.stream.Collectors;
 
 @RestController
 @RequestMapping("/api/parties/{partyId}/runs")
@@ -19,6 +20,19 @@ import java.util.UUID;
 public class PartyRunController {
 
     private final PartyRunService partyRunService;
+
+    @GetMapping
+    public ResponseEntity<?> getPartyRuns(@PathVariable UUID partyId,
+                                          @AuthenticationPrincipal User me) {
+        if (me == null) {
+            return ResponseEntity.status(401).body("인증이 필요합니다.");
+        }
+        List<PartyRun> partyRuns = partyRunService.getPartyRunsByPartyId(partyId, me);
+        List<PartyRunResponseDto> responseDtos = partyRuns.stream()
+                .map(PartyRunResponseDto::fromEntity)
+                .collect(Collectors.toList());
+        return ResponseEntity.ok(responseDtos);
+    }
 
     @PostMapping
     public ResponseEntity<?> createPartyRun(@PathVariable UUID partyId,
