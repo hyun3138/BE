@@ -27,4 +27,4 @@ COPY --from=builder /build/build/libs/*.jar /app/app.jar
 EXPOSE 8080
 
 # 컨테이너가 시작될 때 실행될 명령어를 정의합니다. (수정된 부분)
-ENTRYPOINT ["sh", "-c", "java $JAVA_TOOL_OPTIONS -jar /app/app.jar"]
+ENTRYPOINT ["sh", "-c", "java -Dhttps.proxyHost=10.0.13.107 -Dhttps.proxyPort=3128 -Dhttp.proxyHost=10.0.13.107 -Dhttp.proxyPort=3128 -jar /app/app.jar"]
