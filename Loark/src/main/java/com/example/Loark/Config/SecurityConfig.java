@@ -6,14 +6,18 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.http.HttpMethod;
-import org.springframework.security.config.Customizer;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.web.AuthenticationEntryPoint;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
+import org.springframework.web.cors.CorsConfiguration;
+import org.springframework.web.cors.CorsConfigurationSource;
+import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 
 import jakarta.servlet.http.HttpServletResponse;
+import java.util.Arrays;
+import java.util.List;
 
 @Configuration
 @RequiredArgsConstructor
@@ -25,9 +29,9 @@ public class SecurityConfig {
     @Bean
     public SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
 
-        // 1) CSRF는 쿠키-JWT(stateless)라서 비활성, CORS는 기본 빈/설정 사용
+        // 1) CSRF 비활성, CORS는 corsConfigurationSource Bean 사용
         http.csrf(csrf -> csrf.disable());
-        http.cors(Customizer.withDefaults());
+        http.cors(cors -> cors.configurationSource(corsConfigurationSource()));
 
         // 2) 세션 완전 비활성 (JWT만 사용)
         http.sessionManagement(sm -> sm.sessionCreationPolicy(SessionCreationPolicy.STATELESS));
@@ -48,6 +52,9 @@ public class SecurityConfig {
 
         // 6) 접근 제어
         http.authorizeHttpRequests(auth -> auth
+                // CORS Pre-flight 요청은 인증 없이 허용
+                .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
+
                 // 프론트 정적 파일/헬스체크/문서 등 허용
                 .requestMatchers("/", "/index.html", "/favicon.ico", "/static/**").permitAll()
                 .requestMatchers("/actuator/health", "/health").permitAll()
@@ -67,5 +74,26 @@ public class SecurityConfig {
         );
 
         return http.build();
+    }
+
+    @Bean
+    public CorsConfigurationSource corsConfigurationSource() {
+        CorsConfiguration configuration = new CorsConfiguration();
+
+        configuration.setAllowedOrigins(List.of(
+                "https://loark.kr",
+                "https://www.loark.kr",
+                "http://loark.kr",
+                "http://localhost:5173", // Vite 개발 서버
+                "http://localhost:3000"  // CRA 개발 서버
+        ));
+        configuration.setAllowedMethods(Arrays.asList("GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"));
+        configuration.setAllowedHeaders(List.of("*"));
+        configuration.setAllowCredentials(true);
+        configuration.setMaxAge(3600L);
+
+        UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
+        source.registerCorsConfiguration("/**", configuration);
+        return source;
     }
 }
