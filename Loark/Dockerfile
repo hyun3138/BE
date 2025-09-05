@@ -26,5 +26,5 @@ COPY --from=builder /build/build/libs/*.jar /app/app.jar
 # 컨테이너 외부에서 8080 포트로 접근할 수 있도록 노출합니다.
 EXPOSE 8080
 
-# 컨테이너가 시작될 때 실행될 명령어를 정의합니다.
-ENTRYPOINT ["java", "-jar", "/app/app.jar"]
+# 컨테이너가 시작될 때 실행될 명령어를 정의합니다. (수정된 부분)
+ENTRYPOINT ["sh", "-c", "java $JAVA_TOOL_OPTIONS -jar /app/app.jar"]
