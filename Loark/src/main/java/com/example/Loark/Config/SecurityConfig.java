@@ -105,7 +105,7 @@ public class SecurityConfig {
                 "https://www.loark.kr",
                 "http://loark.kr",
                 "http://api.loark.kr",
-                "https://api.loark.kr"
+                "https://api.loark.kr",
                 "http://localhost:5173", // Vite 개발 서버
                 "http://localhost:3000"  // CRA 개발 서버
         ));
