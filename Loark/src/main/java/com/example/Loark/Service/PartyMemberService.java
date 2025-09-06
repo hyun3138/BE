@@ -30,50 +30,6 @@ public class PartyMemberService {
         return members.findByParty_PartyId(partyId);
     }
 
-    /** 참가(재참가 포함): 초대 수락은 STEP3에서 처리되지만, 공대장 외 멤버가 재참가할 때 사용 */
-    @Transactional
-    public void join(UUID partyId, Long me) {
-        Party party = parties.findById(partyId)
-                .orElseThrow(() -> new IllegalArgumentException("공대를 찾을 수 없습니다."));
-
-        // ✅ private 파티는 직접 join 금지 (초대 수락 API를 사용해야 함)
-        if ("private".equalsIgnoreCase(party.getVisibility())) {
-            throw new IllegalStateException("비공개 공대는 초대를 수락해야만 가입할 수 있습니다."); // 400/409 계열로 처리됨
-            // (프론트는 /api/parties/{partyId}/invites/received로 초대 조회 → accept 호출)
-        }
-
-// 현재 멤버면 즉시 차단 (LeftAt IS NULL 기준)
-        if (members.existsByParty_PartyIdAndUser_UserIdAndLeftAtIsNull(partyId, me)) {
-            throw new IllegalStateException("이미 공대 멤버입니다.");
-        }
-
-        long cur = members.countByParty_PartyIdAndLeftAtIsNull(partyId);
-        if (cur >= MAX_MEMBERS) throw new IllegalStateException("정원이 가득 찼습니다.(최대 8명)");
-
-// 과거 이력 있으면 복원, 없으면 신규
-        var histOpt = members.findByParty_PartyIdAndUser_UserId(partyId, me);
-        if (histOpt.isPresent()) {
-            var hist = histOpt.get();
-            if (hist.getLeftAt() != null) {
-                hist.setLeftAt(null);
-                hist.setSubparty(null);
-                hist.setRole(null);
-                hist.setColeader(false);
-                members.save(hist);
-            } else {
-                throw new IllegalStateException("이미 공대 멤버입니다.");
-            }
-        } else {
-            // 최초 입장
-            User user = users.findById(me).orElseThrow(() -> new IllegalArgumentException("사용자를 찾을 수 없습니다.")); // 2. ID로 User 엔티티 조회
-            var m = PartyMember.builder()
-                    .id(new PartyMemberId(partyId, me))
-                    .party(party)
-                    .user(user) // 조회한 User 엔티티 사용
-                    .build();
-            members.save(m);
-        }
-    }
     /** 퇴장(본인) — 공대장은 퇴장 불가 */
     @Transactional
     public void leave(UUID partyId, Long me) {

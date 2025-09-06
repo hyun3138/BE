@@ -37,16 +37,6 @@ public class PartyController {
         return ResponseEntity.ok(PartyMapper.toDto(saved));
     }
 
-    /** 공대 가입 */
-    @PostMapping("/{partyId}/join")
-    public ResponseEntity<Void> join(@PathVariable UUID partyId, @AuthenticationPrincipal User me) {
-        if (me == null) {
-            return ResponseEntity.status(401).build();
-        }
-        partyService.join(partyId, me);
-        return ResponseEntity.ok().build();
-    }
-
     @GetMapping("/joined")
     public ResponseEntity<?> joined(@AuthenticationPrincipal User me) {
         if (me == null) return ResponseEntity.status(401).body("인증 필요");
@@ -80,17 +70,5 @@ public class PartyController {
         if (me == null) return ResponseEntity.status(401).body("인증 필요");
         partyService.changeSubparty(partyId, me.getUserId(), req.getMember1UserId(), req.getMember2UserId());
         return ResponseEntity.ok("멤버의 서브파티를 교체했습니다.");
-    }
-
-    /** ✅ 전체 공개 공대 목록 (비로그인 허용) */
-    @GetMapping("/public")
-    public ResponseEntity<?> listPublic(
-            @RequestParam(required = false) String q,
-            @PageableDefault(size = 20, sort = "createdAt", direction = Sort.Direction.DESC)
-            Pageable pageable
-    ) {
-        Page<PartyResponse> page = partyService.listPublic(q, pageable)
-                .map(PartyMapper::toDto);
-        return ResponseEntity.ok(page);
     }
 }
