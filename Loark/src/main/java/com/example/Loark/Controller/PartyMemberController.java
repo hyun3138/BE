@@ -33,15 +33,6 @@ public class PartyMemberController {
         return ResponseEntity.ok(dto);
     }
 
-    /** 참가(재참가 포함) — 공대장은 이미 자동 가입됨 */
-    @PostMapping("/join")
-    public ResponseEntity<?> join(@PathVariable UUID partyId,
-                                  @AuthenticationPrincipal User me) {
-        if (me == null) return ResponseEntity.status(401).body("인증 필요");
-        service.join(partyId, me.getUserId());
-        return ResponseEntity.ok("공대에 참가했습니다.");
-    }
-
     /** 퇴장(본인) — 공대장은 퇴장 불가 */
     @PostMapping("/leave")
     public ResponseEntity<?> leave(@PathVariable UUID partyId,

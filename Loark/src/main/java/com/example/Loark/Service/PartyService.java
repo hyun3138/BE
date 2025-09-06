@@ -52,50 +52,6 @@ public class PartyService {
         return p;
     }
 
-    /** 공대 가입: subparty 자동 배정 */
-    @Transactional
-    public void join(UUID partyId, User user) {
-        if (user == null) throw new IllegalStateException("로그인이 필요합니다.");
-
-        Party party = partyRepository.findById(partyId)
-                .orElseThrow(() -> new IllegalStateException("존재하지 않는 파티입니다."));
-
-        // 이미 현재 멤버인지 확인
-        if (partyMemberRepository.existsByParty_PartyIdAndUser_UserIdAndLeftAtIsNull(partyId, user.getUserId())) {
-            throw new IllegalStateException("이미 가입한 파티입니다.");
-        }
-
-        // 파티 인원 제한 확인 (최대 8명)
-        if (partyMemberRepository.countByParty_PartyIdAndLeftAtIsNull(partyId) >= 8) {
-            throw new IllegalStateException("파티가 가득 찼습니다.");
-        }
-
-        // 서브파티 배정 로직
-        int subpartyToAssign;
-        long subparty1Count = partyMemberRepository.countByParty_PartyIdAndSubpartyAndLeftAtIsNull(partyId, 1);
-
-        if (subparty1Count < 4) {
-            subpartyToAssign = 1;
-        } else {
-            subpartyToAssign = 2;
-        }
-
-        // 재가입 처리 로직 포함하여 멤버 정보 업데이트
-        PartyMember member = partyMemberRepository.findByParty_PartyIdAndUser_UserId(partyId, user.getUserId())
-                .orElseGet(() -> PartyMember.builder()
-                        .id(new PartyMemberId(partyId, user.getUserId()))
-                        .party(party)
-                        .user(user)
-                        .build());
-
-        member.setSubparty((short) subpartyToAssign);
-        member.setRole(null);
-        member.setColeader(false);
-        member.setLeftAt(null); // 재가입이므로 탈퇴시간 초기화
-
-        partyMemberRepository.save(member);
-    }
-
     @Transactional
     public void changeSubparty(UUID partyId, Long ownerId, Long member1UserId, Long member2UserId) {
         Party party = getOwnedOrThrow(partyId, ownerId); // 1. 소유권 확인
@@ -177,17 +133,5 @@ public class PartyService {
 
         p.setOwner(newOwnerMember.getUser());
         partyRepository.save(p);
-    }
-
-    /** 전체 공개 공대 목록 */
-    public Page<Party> listPublic(Pageable pageable) {
-        return partyRepository.findAll(pageable);
-    }
-
-    /** (옵션) 검색어 포함 공개 공대 목록 */
-    public Page<Party> listPublic(String q, Pageable pageable) {
-        if (q == null || q.isBlank()) return listPublic(pageable);
-        return partyRepository.findByVisibilityAndNameContainingIgnoreCase("공개", q.trim(), pageable);
-
     }
 }
