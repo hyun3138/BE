@@ -7,6 +7,7 @@ import com.example.Loark.Entity.User;
 import com.example.Loark.Repository.CharacterRepository;
 import com.example.Loark.Repository.CharacterSpecRepository;
 import com.example.Loark.Repository.FactGateMetricsRepository;
+import com.example.Loark.Repository.FriendRepository;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -33,13 +34,14 @@ public class CharacterService {
     private final LostarkApiClient loa;
     private final CharacterRepository characterRepo;
     private final CharacterSpecRepository characterSpecRepo;
-    private final FactGateMetricsRepository factGateMetricsRepository; // 의존성 추가
+    private final FactGateMetricsRepository factGateMetricsRepository;
+    private final FriendRepository friendRepo; // 의존성 추가
     private final ObjectMapper mapper;
     private final ClovaOcrService clovaOcrService;
     private final S3UploadService s3UploadService;
 
     /**
-     * 특정 캐릭터의 모든 전투 기록을 조회합니다.
+     * 특정 캐릭터의 모든 전투 기록을 조회합니다. (본인 또는 친구만 가능)
      * @param characterName 조회할 캐릭터의 이름
      * @param currentUser 요청을 보낸 로그인된 사용자
      * @return 전투 기록 DTO 리스트
@@ -47,11 +49,25 @@ public class CharacterService {
      */
     @Transactional(readOnly = true)
     public List<FactGateMetricsDto> getCharacterCombatRecords(String characterName, User currentUser) {
-        // 1. 캐릭터가 요청을 보낸 사용자의 소유인지 확인 (보안 검사)
-        characterRepo.findByUserAndName(currentUser, characterName)
-                .orElseThrow(() -> new IllegalStateException("조회 권한이 없거나 존재하지 않는 캐릭터입니다."));
+        // 1. 먼저 캐릭터 이름으로 캐릭터 정보를 조회하여 소유주를 찾습니다.
+        Character targetCharacter = characterRepo.findByName(characterName)
+                .orElseThrow(() -> new IllegalStateException("존재하지 않는 캐릭터입니다."));
 
-        // 2. 권한이 확인되면, 전투 기록을 조회하여 반환
+        User targetUser = targetCharacter.getUser();
+
+        // 2. 권한을 확인합니다: 요청자가 본인이거나, 대상과 친구 관계인지 확인합니다.
+        boolean isOwner = currentUser.getUserId().equals(targetUser.getUserId());
+        boolean isFriend = false;
+        if (!isOwner) {
+            isFriend = friendRepo.existsAcceptedBetween(currentUser.getUserId(), targetUser.getUserId());
+        }
+
+        // 3. 본인도 아니고 친구도 아니면, 권한 없음 예외를 발생시킵니다.
+        if (!isOwner && !isFriend) {
+            throw new IllegalStateException("조회 권한이 없습니다.");
+        }
+
+        // 4. 권한이 확인되면, 전투 기록을 조회하여 반환합니다.
         return factGateMetricsRepository.findAllByCharacterName(characterName);
     }
 

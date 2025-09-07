@@ -18,4 +18,6 @@ public class FriendResponse {
     private LocalDateTime respondedAt;
     private String friendMemo;
     private OffsetDateTime friendMemoUpdatedAt;
+    private String mainCharacterName;
+    private String characterClass;
 }
