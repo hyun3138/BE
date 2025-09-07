@@ -3,8 +3,10 @@ package com.example.Loark.Controller;
 import com.example.Loark.DTO.BlockRequest;
 import com.example.Loark.DTO.FriendRequest;
 import com.example.Loark.DTO.FriendResponse;
+import com.example.Loark.Entity.Character;
 import com.example.Loark.Entity.Friend_Memo;
 import com.example.Loark.Entity.User;
+import com.example.Loark.Repository.CharacterRepository;
 import com.example.Loark.Service.FriendService;
 import com.example.Loark.Entity.Friend;
 import lombok.RequiredArgsConstructor;
@@ -18,12 +20,14 @@ import org.springframework.data.web.PageableDefault;
 import org.springframework.data.domain.Sort;
 
 import java.util.Map;
+import java.util.Optional;
 
 @RestController
 @RequestMapping("/api")
 @RequiredArgsConstructor
 public class FriendController {
     private final FriendService friendService;
+    private final CharacterRepository characterRepository; // 의존성 추가
 
     @PostMapping("/friends/request")
     public ResponseEntity<String> sendRequest(
@@ -137,10 +141,20 @@ public class FriendController {
     // ✅ 목록 응답에 “내 메모”를 실어 주기 위한 매핑 보정
     private FriendResponse toDto(Friend f, Long me) {
         boolean iAmRequester = f.getRequester().getUserId().equals(me);
-        var other = iAmRequester ? f.getTarget() : f.getRequester();
+        User other = iAmRequester ? f.getTarget() : f.getRequester();
 
         // 내 메모만 조회해서 DTO에 채움
         Friend_Memo myMemo = friendService.findMyMemo(me, f.getFriendId());
+
+        // 상대방의 메인 캐릭터 이름과 직업 조회
+        String mainCharacterName = other.getMainCharacter();
+        String characterClass = null;
+        if (mainCharacterName != null && !mainCharacterName.isBlank()) {
+            Optional<Character> characterOpt = characterRepository.findByName(mainCharacterName);
+            if (characterOpt.isPresent()) {
+                characterClass = characterOpt.get().getClazz();
+            }
+        }
 
         return FriendResponse.builder()
                 .friendId(f.getFriendId())
@@ -149,9 +163,10 @@ public class FriendController {
                 .status(f.getStatus())
                 .createdAt(f.getCreatedAt())
                 .respondedAt(f.getRespondedAt())
-                // DTO 스키마는 유지하고, 값은 내 메모로 대체
                 .friendMemo(myMemo != null ? myMemo.getMemoText() : null)
                 .friendMemoUpdatedAt(myMemo != null ? myMemo.getUpdatedAt().atOffset(java.time.ZoneOffset.systemDefault().getRules().getOffset(myMemo.getUpdatedAt())) : null)
+                .mainCharacterName(mainCharacterName)
+                .characterClass(characterClass)
                 .build();
     }
 
