@@ -11,6 +11,9 @@ import org.springframework.web.client.RestTemplate;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.io.IOException;
+import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
+import java.time.format.DateTimeParseException;
 import java.util.*;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -102,7 +105,19 @@ public class ClovaOcrService {
                 String g = key.split("_")[1];
                 subData.computeIfAbsent(g, k -> new HashMap<>()).put("val", val);
             } else if (!key.startsWith("main_") && !key.startsWith("sub_") && !info.containsKey(key)) {
-                if ("play_time".equals(key)) val = val.replaceAll("[()]", "");
+                if ("play_time".equals(key)) {
+                    val = val.replaceAll("[()]", "");
+                } else if ("clear_date".equals(key)) {
+                    try {
+                        // 날짜 뒤의 점(.)이 선택적이거나 없는 경우를 모두 처리하는 포맷터
+                        DateTimeFormatter formatter = DateTimeFormatter.ofPattern("yyyy.MM.dd[. ]HH:mm:ss");
+                        // 파싱을 시도하여 형식을 검증합니다. 실패 시 catch 블록으로 이동합니다.
+                        LocalDateTime.parse(val, formatter);
+                    } catch (DateTimeParseException e) {
+                        // 파싱 실패 시, 더 명확한 오류 메시지와 함께 예외를 발생시킵니다.
+                        throw new RuntimeException("필드 'clear_date'의 날짜 형식이 잘못되었습니다: '" + val + "'", e);
+                    }
+                }
                 info.put(key, val);
             }
         }
@@ -141,7 +156,7 @@ public class ClovaOcrService {
                 String difficulty = "";
                 String raidTitle = "";
 
-                Pattern gatePattern = Pattern.compile("(\\d+)\\s*관문\\s*$");
+                Pattern gatePattern = Pattern.compile("(\\d+)\s*관문\s*$");
                 Matcher gateMatcher = gatePattern.matcher(rawVal);
                 String remainingPart = rawVal;
 
@@ -157,7 +172,7 @@ public class ClovaOcrService {
                     difficulty = bracketMatcher.group(1).trim();
                     raidTitle = remainingPart.substring(0, bracketMatcher.start()).trim();
                 } else {
-                    String[] words = remainingPart.trim().split("\\s+");
+                    String[] words = remainingPart.trim().split("\s+");
                     LinkedList<String> difficultyWords = new LinkedList<>();
                     int splitPoint = words.length;
 
@@ -183,8 +198,8 @@ public class ClovaOcrService {
                     }
                 }
 
-                info.put("raid_name", raidTitle.replaceAll("[:.,\\s]", ""));
-                info.put("난이도", difficulty.replaceAll("[:.,\\s]", ""));
+                info.put("raid_name", raidTitle.replaceAll("[:.,\s]", ""));
+                info.put("난이도", difficulty.replaceAll("[:.,\s]", ""));
                 info.put("관문", gateNum);
 
             } else if ("recorded_at".equals(fieldName)) {
@@ -210,6 +225,6 @@ public class ClovaOcrService {
 
     private String cleanSpaces(String text) {
         if (text == null) return "";
-        return text.replaceAll("\\s+", "");
+        return text.replaceAll("\s+", "");
     }
 }
