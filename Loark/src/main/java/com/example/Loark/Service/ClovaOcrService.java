@@ -171,7 +171,7 @@ public class ClovaOcrService {
 
                 // 전처리 단계: 대괄호가 없고, "영어단어" + "관문" 패턴이 있으면 영어를 대괄호로 감싼다.
                 if (!processedVal.contains("[") && !processedVal.contains("]")) {
-                    Pattern englishPattern = Pattern.compile("^(.+?)\s+([a-zA-Z\s]+?)\s+(\\d+\s*관문\s*)$");
+                    Pattern englishPattern = Pattern.compile("^(.+?)\\s+([a-zA-Z\\s]+?)\\s+(\\d+\\s*관문\\s*)$");
                     Matcher englishMatcher = englishPattern.matcher(processedVal);
                     if (englishMatcher.matches()) {
                         String raidPart = englishMatcher.group(1);
@@ -182,11 +182,11 @@ public class ClovaOcrService {
                 }
 
                 // 기존 로직: 대괄호가 있는 경우를 파싱
-                Pattern pattern = Pattern.compile("(.+?)\\[(.+?)](.+)");
+                Pattern pattern = Pattern.compile("(.+?)\\[(.+?)\\](.+)");
                 Matcher matcher = pattern.matcher(processedVal);
                 if (matcher.matches()) {
-                    String raidTitle = matcher.group(1).replaceAll("[:.,\s]", "");
-                    String difficulty = matcher.group(2).replaceAll("\s+", "");
+                    String raidTitle = matcher.group(1).replaceAll("[:.,\\s]", "");
+                    String difficulty = matcher.group(2).replaceAll("\\s+", "");
                     String gatePart = matcher.group(3);
                     Matcher gateMatcher = Pattern.compile("(\\d+)").matcher(gatePart);
                     String gateNum = gateMatcher.find() ? gateMatcher.group(1) : "";
@@ -200,14 +200,14 @@ public class ClovaOcrService {
                     String gateNum = "";
                     String difficulty = "";
 
-                    Pattern gatePattern = Pattern.compile("(\\d+)\s*관문\s*$");
+                    Pattern gatePattern = Pattern.compile("(\\d+)\\s*관문\\s*$");
                     Matcher gateMatcher = gatePattern.matcher(raidTitle);
                     if (gateMatcher.find()) {
                         gateNum = gateMatcher.group(1);
                         raidTitle = raidTitle.substring(0, gateMatcher.start()).trim();
                     }
                     
-                    String[] words = raidTitle.split("\s+");
+                    String[] words = raidTitle.split("\\s+");
                     if (words.length > 1) {
                         String lastWord = words[words.length - 1];
                         if (Set.of("노말", "하드", "헬").contains(lastWord)) {
@@ -216,7 +216,7 @@ public class ClovaOcrService {
                         }
                     }
 
-                    info.put("raid_name", raidTitle.replaceAll("[:.,\s]", ""));
+                    info.put("raid_name", raidTitle.replaceAll("[:.,\\s]", ""));
                     info.put("난이도", difficulty);
                     info.put("관문", gateNum);
                 }
@@ -245,6 +245,6 @@ public class ClovaOcrService {
 
     private String cleanSpaces(String text) {
         if (text == null) return "";
-        return text.replaceAll("\s+", "");
+        return text.replaceAll("\\s+", "");
     }
 }
