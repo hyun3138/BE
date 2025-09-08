@@ -394,7 +394,8 @@ public class CharacterService {
                         case "도약": leapDetails.add(finalDetail); break;
                     }
                 } catch (JsonProcessingException e) {
-                    // Ignore inner parsing errors
+                    // Re-throw to ensure transactional integrity
+                    throw new RuntimeException("Failed to parse tooltip JSON in populateSpecFromJson", e);
                 }
             }
 
@@ -458,6 +459,7 @@ public class CharacterService {
                 if (ok) updated++; else skipped++;
             } catch (Exception e) {
                 error++;
+                throw new RuntimeException("Failed to refresh character: " + ch.getName(), e);
             }
         }
         return new RefreshSummary(updated, skipped, error);
@@ -477,7 +479,7 @@ public class CharacterService {
         try {
             return mapper.writeValueAsString(node);
         } catch (JsonProcessingException e) {
-            return null;
+            throw new RuntimeException("Failed to serialize JsonNode to string", e);
         }
     }
 
@@ -566,7 +568,7 @@ public class CharacterService {
                 updateCharacterSpecIfNeeded(character);
             } catch (Exception e) {
                 System.err.println("Failed to update spec for character: " + character.getName());
-                e.printStackTrace();
+                throw new RuntimeException("Failed to update spec for character: " + character.getName(), e);
             }
         }
     }
