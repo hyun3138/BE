@@ -4,14 +4,11 @@ import com.example.Loark.Entity.Party;
 import com.example.Loark.Entity.PartyMember;
 import com.example.Loark.Entity.PartyMemberId;
 import com.example.Loark.Entity.User;
-import com.example.Loark.Repository.PartyInviteRepository;
 import com.example.Loark.Repository.PartyMemberRepository;
 import com.example.Loark.Repository.PartyRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-import org.springframework.data.domain.Page;
-import org.springframework.data.domain.Pageable;
 
 import java.util.List;
 import java.util.UUID;
@@ -22,7 +19,6 @@ import java.util.UUID;
 public class PartyService {
     private final PartyRepository partyRepository;
     private final PartyMemberRepository partyMemberRepository;
-    private final PartyInviteRepository partyInviteRepository;
 
     /** 공대 생성: owner = me, visibility 검증 */
     @Transactional
@@ -102,7 +98,6 @@ public class PartyService {
     @Transactional
     public void deleteOwned(UUID partyId, User user) {
         Party p = getOwnedOrThrow(partyId, user.getUserId()); // 소유권 검증
-        partyInviteRepository.deleteAllByParty(p);
         partyRepository.delete(p);
     }
 
