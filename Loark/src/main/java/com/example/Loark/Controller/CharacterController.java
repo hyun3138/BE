@@ -1,15 +1,12 @@
 package com.example.Loark.Controller;
 
-import com.example.Loark.DTO.ChangeMainRequest;
 import com.example.Loark.DTO.FactGateMetricsDto;
-import com.example.Loark.Entity.Character;
 import com.example.Loark.Entity.CharacterSpec;
 import com.example.Loark.Entity.User;
 import com.example.Loark.Repository.CharacterRepository;
 import com.example.Loark.Repository.UserRepository;
 import com.example.Loark.Service.CharacterService;
 import com.example.Loark.Service.LostarkApiClient;
-import com.fasterxml.jackson.core.JsonProcessingException;
 import lombok.RequiredArgsConstructor;
 import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.HttpStatus;
@@ -105,7 +102,6 @@ public class CharacterController {
     }
 
     @PostMapping("/save-main")
-    @Transactional
     public ResponseEntity<?> saveMain(@AuthenticationPrincipal User me,
                                       @RequestParam(required = false) String apiKeyOpt) {
 
