@@ -7,6 +7,7 @@ import com.example.Loark.Entity.User;
 import com.example.Loark.Repository.PartyRepository;
 import com.example.Loark.Service.PartyMemberMapper;
 import com.example.Loark.Service.PartyMemberService;
+import lombok.Data;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
@@ -23,6 +24,12 @@ public class PartyMemberController {
     private final PartyMemberService service;
     private final PartyRepository parties;
 
+    @Data
+    static class AddMemberRequest {
+        private Long userId;
+        private String nickname;
+    }
+
     /** 멤버 목록 조회 */
     @GetMapping
     public ResponseEntity<?> list(@PathVariable UUID partyId) {
@@ -31,6 +38,26 @@ public class PartyMemberController {
         List<PartyMember> all = service.list(partyId);
         var dto = all.stream().map(m -> PartyMemberMapper.toDto(m, party)).toList();
         return ResponseEntity.ok(dto);
+    }
+
+    /** 멤버 즉시 추가 (공대장만) */
+    @PostMapping
+    public ResponseEntity<?> addMember(@PathVariable UUID partyId,
+                                       @AuthenticationPrincipal User me,
+                                       @RequestBody AddMemberRequest req) {
+        if (me == null) {
+            return ResponseEntity.status(401).body("인증 필요");
+        }
+
+        if (req.getUserId() != null) {
+            service.addMemberById(partyId, me.getUserId(), req.getUserId());
+        } else if (req.getNickname() != null && !req.getNickname().isBlank()) {
+            service.addMemberByNickname(partyId, me.getUserId(), req.getNickname());
+        } else {
+            return ResponseEntity.badRequest().body("추가할 멤버의 ID 또는 닉네임을 입력해주세요.");
+        }
+
+        return ResponseEntity.ok("멤버를 추가했습니다.");
     }
 
     /** 퇴장(본인) — 공대장은 퇴장 불가 */
