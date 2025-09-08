@@ -236,7 +236,7 @@ public class ClovaOcrService {
                     String minute = digitsOnly.substring(10, 12);
                     String second = digitsOnly.substring(12, 14);
                     // 버그 수정: 날짜와 시간 사이에 공백 추가
-                    formattedDate = String.format("%s.%s.%s %s:%s:%s", year, month, day, hour, minute, second);
+                    formattedDate = String.format("%s.%s.%s%s:%s:%s", year, month, day, hour, minute, second);
                 }
                 info.put("recorded_at", formattedDate);
             }
