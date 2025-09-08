@@ -11,7 +11,7 @@ public class CharacterSpecScheduler {
 
     private final CharacterService characterService;
 
-    //@Scheduled(cron = "0 0 * * * *") // 매 정각에 실행
+    @Scheduled(cron = "0 0 * * * *") // 매 정각에 실행
     public void updateCharacterSpecs() {
         characterService.updateAllCharacterSpecs();
     }
