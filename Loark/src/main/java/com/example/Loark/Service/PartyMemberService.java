@@ -57,7 +57,11 @@ public class PartyMemberService {
             throw new IllegalStateException("이미 공대 멤버입니다.");
         }
 
-        // 7) 멤버 추가 또는 재가입 처리
+        // 7) 서브파티 배정 로직
+        long subparty1Count = members.countByParty_PartyIdAndSubpartyAndLeftAtIsNull(partyId, 1);
+        short subpartyToAssign = (subparty1Count < 4) ? (short) 1 : (short) 2;
+
+        // 8) 멤버 추가 또는 재가입 처리
         Party party = parties.findById(partyId)
                 .orElseThrow(() -> new IllegalArgumentException("공대를 찾을 수 없습니다."));
         User targetUser = users.findById(targetUserId)
@@ -71,13 +75,11 @@ public class PartyMemberService {
                         .joinedAt(OffsetDateTime.now())
                         .build());
 
-        // 재가입 처리
-        if (member.getLeftAt() != null) {
-            member.setLeftAt(null);
-            member.setSubparty(null);
-            member.setRole(null);
-            member.setColeader(false);
-        }
+        // 신규 또는 재가입 시 공통으로 설정할 값들
+        member.setLeftAt(null);
+        member.setSubparty(subpartyToAssign);
+        member.setRole(null);
+        member.setColeader(false);
 
         members.save(member);
     }
@@ -88,22 +90,18 @@ public class PartyMemberService {
             throw new IllegalArgumentException("대표 캐릭터 닉네임을 입력하세요.");
         }
 
-        // 1. 닉네임으로 사용자를 먼저 찾습니다.
         Optional<User> targetUserOpt = users.findByMainCharacterIgnoreCase(nickname.trim());
 
-        // 2. 사용자가 존재하지 않으면, 여기서 즉시 오류를 발생시킵니다.
         if (targetUserOpt.isEmpty()) {
             throw new IllegalArgumentException("해당 대표 캐릭터 닉네임의 사용자를 찾을 수 없습니다.");
         }
 
-        // 3. 사용자가 존재하면, ID 기반의 메서드를 호출하여 나머지 로직을 수행합니다.
         User targetUser = targetUserOpt.get();
         addMemberById(partyId, ownerId, targetUser.getUserId());
     }
 
     /** 멤버 목록 */
     public List<PartyMember> list(UUID partyId) {
-        // leftAt이 null인, 즉 현재 활동중인 멤버만 조회하도록 수정
         return members.findByParty_PartyIdAndLeftAtIsNull(partyId);
     }
 
