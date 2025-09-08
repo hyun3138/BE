@@ -2,14 +2,13 @@ package com.example.Loark.Service;
 
 import com.example.Loark.Entity.*;
 import com.example.Loark.Repository.*;
-import com.example.Loark.Repository.PartyInviteRepository;
-import com.example.Loark.Entity.PartyInviteStatus;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.OffsetDateTime;
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 
 @Service
@@ -23,11 +22,89 @@ public class PartyMemberService {
     private final PartyMemberRepository members;
     private final PartyAuthz authz;
     private final UserRepository users;
-    private final PartyInviteRepository invites;
+    private final FriendRepository friends;
+    private final BlockedUserRepository blocks;
+
+    @Transactional
+    public void addMemberById(UUID partyId, Long ownerId, Long targetUserId) {
+        // 1) 자기 자신 추가 금지
+        if (ownerId.equals(targetUserId)) {
+            throw new IllegalArgumentException("자기 자신을 추가할 수 없습니다.");
+        }
+
+        // 2) 공대장 권한 확인
+        if (!authz.isOwner(partyId, ownerId)) {
+            throw new IllegalStateException("공대장만 멤버를 추가할 수 있습니다.");
+        }
+
+        // 3) 차단 관계 금지
+        if (blocks.existsAnyBlockBetween(ownerId, targetUserId)) {
+            throw new IllegalStateException("차단 관계에서는 추가할 수 없습니다.");
+        }
+
+        // 4) 친구(ACCEPTED) 관계만 허용
+        if (!friends.existsAcceptedBetween(ownerId, targetUserId)) {
+            throw new IllegalStateException("친구 관계인 사용자만 추가할 수 있습니다.");
+        }
+
+        // 5) 정원 8명 제한
+        if (members.countByParty_PartyIdAndLeftAtIsNull(partyId) >= MAX_MEMBERS) {
+            throw new IllegalStateException("정원이 가득 찼습니다.(최대 8명)");
+        }
+
+        // 6) 이미 현재 멤버인지 확인
+        if (members.existsByParty_PartyIdAndUser_UserIdAndLeftAtIsNull(partyId, targetUserId)) {
+            throw new IllegalStateException("이미 공대 멤버입니다.");
+        }
+
+        // 7) 멤버 추가 또는 재가입 처리
+        Party party = parties.findById(partyId)
+                .orElseThrow(() -> new IllegalArgumentException("공대를 찾을 수 없습니다."));
+        User targetUser = users.findById(targetUserId)
+                .orElseThrow(() -> new IllegalArgumentException("추가할 사용자를 찾을 수 없습니다."));
+
+        PartyMember member = members.findByParty_PartyIdAndUser_UserId(partyId, targetUserId)
+                .orElseGet(() -> PartyMember.builder() // 신규 멤버
+                        .id(new PartyMemberId(partyId, targetUserId))
+                        .party(party)
+                        .user(targetUser)
+                        .joinedAt(OffsetDateTime.now())
+                        .build());
+
+        // 재가입 처리
+        if (member.getLeftAt() != null) {
+            member.setLeftAt(null);
+            member.setSubparty(null);
+            member.setRole(null);
+            member.setColeader(false);
+        }
+
+        members.save(member);
+    }
+
+    @Transactional
+    public void addMemberByNickname(UUID partyId, Long ownerId, String nickname) {
+        if (nickname == null || nickname.isBlank()) {
+            throw new IllegalArgumentException("대표 캐릭터 닉네임을 입력하세요.");
+        }
+
+        // 1. 닉네임으로 사용자를 먼저 찾습니다.
+        Optional<User> targetUserOpt = users.findByMainCharacterIgnoreCase(nickname.trim());
+
+        // 2. 사용자가 존재하지 않으면, 여기서 즉시 오류를 발생시킵니다.
+        if (targetUserOpt.isEmpty()) {
+            throw new IllegalArgumentException("해당 대표 캐릭터 닉네임의 사용자를 찾을 수 없습니다.");
+        }
+
+        // 3. 사용자가 존재하면, ID 기반의 메서드를 호출하여 나머지 로직을 수행합니다.
+        User targetUser = targetUserOpt.get();
+        addMemberById(partyId, ownerId, targetUser.getUserId());
+    }
 
     /** 멤버 목록 */
     public List<PartyMember> list(UUID partyId) {
-        return members.findByParty_PartyId(partyId);
+        // leftAt이 null인, 즉 현재 활동중인 멤버만 조회하도록 수정
+        return members.findByParty_PartyIdAndLeftAtIsNull(partyId);
     }
 
     /** 퇴장(본인) — 공대장은 퇴장 불가 */
@@ -40,8 +117,8 @@ public class PartyMemberService {
             throw new IllegalStateException("공대장은 퇴장할 수 없습니다. 공대를 삭제하거나 위임 기능을 구현하세요.");
         }
 
-        PartyMember m = members.findByParty_PartyId(partyId).stream()
-                .filter(x -> x.getUser().getUserId().equals(me) && x.getLeftAt() == null)
+        PartyMember m = members.findByParty_PartyIdAndLeftAtIsNull(partyId).stream()
+                .filter(x -> x.getUser().getUserId().equals(me))
                 .findFirst()
                 .orElseThrow(() -> new IllegalStateException("재직중 멤버가 아닙니다."));
 
@@ -59,8 +136,8 @@ public class PartyMemberService {
             throw new IllegalStateException("공대장을 추방할 수 없습니다.");
         }
 
-        PartyMember m = members.findByParty_PartyId(partyId).stream()
-                .filter(x -> x.getUser().getUserId().equals(targetUserId) && x.getLeftAt() == null)
+        PartyMember m = members.findByParty_PartyIdAndLeftAtIsNull(partyId).stream()
+                .filter(x -> x.getUser().getUserId().equals(targetUserId))
                 .findFirst()
                 .orElseThrow(() -> new IllegalStateException("해당 유저는 재직중 멤버가 아닙니다."));
 

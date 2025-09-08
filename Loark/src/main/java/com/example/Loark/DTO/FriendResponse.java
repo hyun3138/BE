@@ -2,6 +2,8 @@ package com.example.Loark.DTO;
 
 import com.example.Loark.Entity.FriendStatus;
 import lombok.*;
+
+import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.time.OffsetDateTime;
 
@@ -20,4 +22,6 @@ public class FriendResponse {
     private OffsetDateTime friendMemoUpdatedAt;
     private String mainCharacterName;
     private String characterClass;
+    private String server;
+    private BigDecimal itemLevel;
 }
