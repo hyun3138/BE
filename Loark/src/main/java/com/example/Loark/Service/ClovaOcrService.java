@@ -32,11 +32,19 @@ public class ClovaOcrService {
     @Value("${clova.ocr.secret-key}")
     private String clovaSecretKey;
 
+    /**
+     * 이미지 파일을 받아 Clova OCR API를 호출하고, 결과를 파싱하여 Map으로 반환합니다.
+     * @param file 분석할 이미지 파일
+     * @return 파싱된 데이터 Map
+     * @throws IOException 파일 처리 오류
+     * @throws IllegalArgumentException '스킬템플릿'이 감지되었을 경우
+     */
     public Map<String, Object> analyzeImage(MultipartFile file) throws IOException {
         String encodedImage = Base64.getEncoder().encodeToString(file.getBytes());
         String imageFormat = Objects.requireNonNull(file.getContentType()).substring("image/".length());
         if ("jpeg".equalsIgnoreCase(imageFormat)) imageFormat = "jpg";
 
+        // Clova API 요청 본문 생성
         HttpHeaders headers = new HttpHeaders();
         headers.setContentType(MediaType.APPLICATION_JSON);
         headers.set("X-OCR-SECRET", clovaSecretKey);
@@ -55,6 +63,7 @@ public class ClovaOcrService {
 
         HttpEntity<Map<String, Object>> requestEntity = new HttpEntity<>(requestBody, headers);
 
+        // API 호출
         ResponseEntity<ClovaOcrResponse> response = restTemplate.postForEntity(clovaApiUrl, requestEntity, ClovaOcrResponse.class);
 
         return parseOcrResponse(Objects.requireNonNull(response.getBody()));
@@ -90,35 +99,40 @@ public class ClovaOcrService {
 
         for (Field f : fields) {
             String key = cleanSpaces(f.getName());
-            String val = cleanSpaces(f.getInferText());
+            String val = f.getInferText(); // 공백 제거는 각 필드 처리 시 필요에 따라 수행
 
             if (key.startsWith("main_") && key.endsWith("_str")) {
                 String g = key.split("_")[1];
-                mainData.computeIfAbsent(g, k -> new HashMap<>()).put("str", val);
+                mainData.computeIfAbsent(g, k -> new HashMap<>()).put("str", cleanSpaces(val));
             } else if (key.startsWith("main_") && key.matches("main_\\d+_1")) {
                 String g = key.split("_")[1];
-                mainData.computeIfAbsent(g, k -> new HashMap<>()).put("val", val);
+                mainData.computeIfAbsent(g, k -> new HashMap<>()).put("val", cleanSpaces(val));
             } else if (key.startsWith("sub_") && key.endsWith("_key")) {
                 String g = key.split("_")[1];
-                subData.computeIfAbsent(g, k -> new HashMap<>()).put("key", val);
+                subData.computeIfAbsent(g, k -> new HashMap<>()).put("key", cleanSpaces(val));
             } else if (key.startsWith("sub_") && key.endsWith("_val")) {
                 String g = key.split("_")[1];
-                subData.computeIfAbsent(g, k -> new HashMap<>()).put("val", val);
+                subData.computeIfAbsent(g, k -> new HashMap<>()).put("val", cleanSpaces(val));
             } else if (!key.startsWith("main_") && !key.startsWith("sub_") && !info.containsKey(key)) {
-                if ("play_time".equals(key)) {
+                if ("play_time".equals(key) && val != null) {
                     val = val.replaceAll("[()]", "");
-                } else if ("clear_date".equals(key)) {
+                } else if ("clear_date".equals(key) && val != null) {
                     try {
-                        // 날짜 뒤의 점(.)이 선택적이거나 없는 경우를 모두 처리하는 포맷터
-                        DateTimeFormatter formatter = DateTimeFormatter.ofPattern("yyyy.MM.dd[. ]HH:mm:ss");
-                        // 파싱을 시도하여 형식을 검증합니다. 실패 시 catch 블록으로 이동합니다.
-                        LocalDateTime.parse(val, formatter);
+                        // 점이 있거나 없는 날짜 형식을 모두 해석하는 유연한 파서
+                        DateTimeFormatter flexibleParser = DateTimeFormatter.ofPattern("yyyy.MM.dd[. ]HH:mm:ss");
+                        LocalDateTime parsedDateTime = LocalDateTime.parse(val, flexibleParser);
+
+                        // 앱 전체에서 사용할 표준 포맷터 (항상 점을 포함)
+                        DateTimeFormatter canonicalFormatter = DateTimeFormatter.ofPattern("yyyy.MM.dd. HH:mm:ss");
+                        val = parsedDateTime.format(canonicalFormatter);
+
                     } catch (DateTimeParseException e) {
-                        // 파싱 실패 시, 더 명확한 오류 메시지와 함께 예외를 발생시킵니다.
+                        // 파싱 실패 시에도 원본 값을 유지하거나, 오류 로깅을 할 수 있음
+                        // 여기서는 명확한 오류를 위해 예외를 던짐
                         throw new RuntimeException("필드 'clear_date'의 날짜 형식이 잘못되었습니다: '" + val + "'", e);
                     }
                 }
-                info.put(key, val);
+                info.put(key, cleanSpaces(val));
             }
         }
 
@@ -134,6 +148,7 @@ public class ClovaOcrService {
             }
         });
 
+        // Filter out entries with null or empty keys
         Map<String, String> cleanedInfo = info.entrySet().stream()
                 .filter(entry -> entry.getKey() != null && !entry.getKey().isEmpty())
                 .collect(Collectors.toMap(Map.Entry::getKey, e -> e.getValue() == null ? "" : e.getValue()));
@@ -144,67 +159,71 @@ public class ClovaOcrService {
 
     private void extractCommonInfo(List<Field> fields, Map<String, String> info) {
         for (Field f : fields) {
-            String fieldName = cleanSpaces(f.getName());
+            String key = cleanSpaces(f.getName());
 
-            if ("raid_name".equals(fieldName)) {
+            if ("raid_name".equals(key)) {
                 String rawVal = f.getInferText();
-                if (rawVal == null || rawVal.isEmpty()) {
+                if (rawVal == null || rawVal.trim().isEmpty()) {
                     continue;
                 }
 
-                String gateNum = "";
-                String difficulty = "";
-                String raidTitle = "";
+                String processedVal = rawVal.trim();
 
-                Pattern gatePattern = Pattern.compile("(\\d+)\s*관문\s*$");
-                Matcher gateMatcher = gatePattern.matcher(rawVal);
-                String remainingPart = rawVal;
-
-                if (gateMatcher.find()) {
-                    gateNum = gateMatcher.group(1);
-                    remainingPart = rawVal.substring(0, gateMatcher.start()).trim();
+                // 전처리 단계: 대괄호가 없고, "영어단어" + "관문" 패턴이 있으면 영어를 대괄호로 감싼다.
+                if (!processedVal.contains("[") && !processedVal.contains("]")) {
+                    Pattern englishPattern = Pattern.compile("^(.+?)\s+([a-zA-Z\s]+?)\s+(\\d+\s*관문\s*)$");
+                    Matcher englishMatcher = englishPattern.matcher(processedVal);
+                    if (englishMatcher.matches()) {
+                        String raidPart = englishMatcher.group(1);
+                        String englishDifficulty = englishMatcher.group(2).trim();
+                        String gatePart = englishMatcher.group(3);
+                        processedVal = String.format("%s [%s] %s", raidPart, englishDifficulty, gatePart);
+                    }
                 }
 
-                Pattern bracketPattern = Pattern.compile("\\[(.+?)]");
-                Matcher bracketMatcher = bracketPattern.matcher(remainingPart);
+                // 기존 로직: 대괄호가 있는 경우를 파싱
+                Pattern pattern = Pattern.compile("(.+?)\\[(.+?)](.+)");
+                Matcher matcher = pattern.matcher(processedVal);
+                if (matcher.matches()) {
+                    String raidTitle = matcher.group(1).replaceAll("[:.,\s]", "");
+                    String difficulty = matcher.group(2).replaceAll("\s+", "");
+                    String gatePart = matcher.group(3);
+                    Matcher gateMatcher = Pattern.compile("(\\d+)").matcher(gatePart);
+                    String gateNum = gateMatcher.find() ? gateMatcher.group(1) : "";
 
-                if (bracketMatcher.find()) {
-                    difficulty = bracketMatcher.group(1).trim();
-                    raidTitle = remainingPart.substring(0, bracketMatcher.start()).trim();
+                    info.put("raid_name", raidTitle);
+                    info.put("난이도", difficulty);
+                    info.put("관문", gateNum);
                 } else {
-                    String[] words = remainingPart.trim().split("\s+");
-                    LinkedList<String> difficultyWords = new LinkedList<>();
-                    int splitPoint = words.length;
+                    // 폴백 로직: 대괄호가 없는 경우 (예: 노말, 하드 난이도 또는 난이도 없음)
+                    String raidTitle = processedVal;
+                    String gateNum = "";
+                    String difficulty = "";
 
-                    for (int i = words.length - 1; i >= 0; i--) {
-                        String currentWord = words[i];
-                        if (Set.of("노말", "하드", "헬").contains(currentWord) || currentWord.matches("^[a-zA-Z]+$")) {
-                            difficultyWords.addFirst(currentWord);
-                            splitPoint = i;
-                        } else {
-                            break;
+                    Pattern gatePattern = Pattern.compile("(\\d+)\s*관문\s*$");
+                    Matcher gateMatcher = gatePattern.matcher(raidTitle);
+                    if (gateMatcher.find()) {
+                        gateNum = gateMatcher.group(1);
+                        raidTitle = raidTitle.substring(0, gateMatcher.start()).trim();
+                    }
+                    
+                    String[] words = raidTitle.split("\s+");
+                    if (words.length > 1) {
+                        String lastWord = words[words.length - 1];
+                        if (Set.of("노말", "하드", "헬").contains(lastWord)) {
+                            difficulty = lastWord;
+                            raidTitle = raidTitle.substring(0, raidTitle.lastIndexOf(lastWord)).trim();
                         }
                     }
 
-                    if (!difficultyWords.isEmpty()) {
-                        difficulty = String.join(" ", difficultyWords);
-                        List<String> titleWords = new ArrayList<>();
-                        for (int i = 0; i < splitPoint; i++) {
-                            titleWords.add(words[i]);
-                        }
-                        raidTitle = String.join(" ", titleWords).trim();
-                    } else {
-                        raidTitle = remainingPart;
-                    }
+                    info.put("raid_name", raidTitle.replaceAll("[:.,\s]", ""));
+                    info.put("난이도", difficulty);
+                    info.put("관문", gateNum);
                 }
-
-                info.put("raid_name", raidTitle.replaceAll("[:.,\s]", ""));
-                info.put("난이도", difficulty.replaceAll("[:.,\s]", ""));
-                info.put("관문", gateNum);
-
-            } else if ("recorded_at".equals(fieldName)) {
+            } else if ("recorded_at".equals(key)) {
                 String val = f.getInferText();
                 if (val == null) continue;
+
                 String recordedAt = val.replaceAll("[()]", "");
                 String digitsOnly = recordedAt.replaceAll("\\D", "");
 
@@ -216,6 +235,7 @@ public class ClovaOcrService {
                     String hour = digitsOnly.substring(8, 10);
                     String minute = digitsOnly.substring(10, 12);
                     String second = digitsOnly.substring(12, 14);
+                    // 버그 수정: 날짜와 시간 사이에 공백 추가
                     formattedDate = String.format("%s.%s.%s %s:%s:%s", year, month, day, hour, minute, second);
                 }
                 info.put("recorded_at", formattedDate);
