@@ -29,11 +29,19 @@ public class ClovaOcrService {
     @Value("${clova.ocr.secret-key}")
     private String clovaSecretKey;
 
+    /**
+     * 이미지 파일을 받아 Clova OCR API를 호출하고, 결과를 파싱하여 Map으로 반환합니다.
+     * @param file 분석할 이미지 파일
+     * @return 파싱된 데이터 Map
+     * @throws IOException 파일 처리 오류
+     * @throws IllegalArgumentException '스킬템플릿'이 감지되었을 경우
+     */
     public Map<String, Object> analyzeImage(MultipartFile file) throws IOException {
         String encodedImage = Base64.getEncoder().encodeToString(file.getBytes());
         String imageFormat = Objects.requireNonNull(file.getContentType()).substring("image/".length());
         if ("jpeg".equalsIgnoreCase(imageFormat)) imageFormat = "jpg";
 
+        // Clova API 요청 본문 생성
         HttpHeaders headers = new HttpHeaders();
         headers.setContentType(MediaType.APPLICATION_JSON);
         headers.set("X-OCR-SECRET", clovaSecretKey);
@@ -52,6 +60,7 @@ public class ClovaOcrService {
 
         HttpEntity<Map<String, Object>> requestEntity = new HttpEntity<>(requestBody, headers);
 
+        // API 호출
         ResponseEntity<ClovaOcrResponse> response = restTemplate.postForEntity(clovaApiUrl, requestEntity, ClovaOcrResponse.class);
 
         return parseOcrResponse(Objects.requireNonNull(response.getBody()));
@@ -119,6 +128,7 @@ public class ClovaOcrService {
             }
         });
 
+        // Filter out entries with null or empty keys
         Map<String, String> cleanedInfo = info.entrySet().stream()
                 .filter(entry -> entry.getKey() != null && !entry.getKey().isEmpty())
                 .collect(Collectors.toMap(Map.Entry::getKey, e -> e.getValue() == null ? "" : e.getValue()));
@@ -129,79 +139,40 @@ public class ClovaOcrService {
 
     private void extractCommonInfo(List<Field> fields, Map<String, String> info) {
         for (Field f : fields) {
-            String fieldName = cleanSpaces(f.getName());
+            String key = cleanSpaces(f.getName());
+            String val = cleanSpaces(f.getInferText());
 
-            if ("raid_name".equals(fieldName)) {
-                String rawVal = f.getInferText();
-                if (rawVal == null || rawVal.isEmpty()) {
-                    continue;
-                }
+            if ("raid_name".equals(key)) {
+                Pattern pattern = Pattern.compile("(.+?)\\[(.+?)\\](.+)");
+                Matcher matcher = pattern.matcher(val);
+                if (matcher.matches()) {
+                    String raidTitle = matcher.group(1).replaceAll("[:.,\\s]", "");
+                    String difficulty = matcher.group(2);
+                    String gatePart = matcher.group(3);
+                    Matcher gateMatcher = Pattern.compile("(\\d+)").matcher(gatePart);
+                    String gateNum = gateMatcher.find() ? gateMatcher.group(1) : gatePart;
 
-                String gateNum = "";
-                String difficulty = "";
-                String raidTitle = "";
-
-                Pattern gatePattern = Pattern.compile("(\\d+)\\s*관문\\s*$");
-                Matcher gateMatcher = gatePattern.matcher(rawVal);
-                String remainingPart = rawVal;
-
-                if (gateMatcher.find()) {
-                    gateNum = gateMatcher.group(1);
-                    remainingPart = rawVal.substring(0, gateMatcher.start()).trim();
-                }
-
-                Pattern bracketPattern = Pattern.compile("\\[(.+?)]");
-                Matcher bracketMatcher = bracketPattern.matcher(remainingPart);
-
-                if (bracketMatcher.find()) {
-                    difficulty = bracketMatcher.group(1).trim();
-                    raidTitle = remainingPart.substring(0, bracketMatcher.start()).trim();
+                    info.put("raid_name", raidTitle);
+                    info.put("난이도", difficulty);
+                    info.put("관문", gateNum);
                 } else {
-                    String[] words = remainingPart.trim().split("\\s+");
-                    LinkedList<String> difficultyWords = new LinkedList<>();
-                    int splitPoint = words.length;
-
-                    for (int i = words.length - 1; i >= 0; i--) {
-                        String currentWord = words[i];
-                        if (Set.of("노말", "하드", "헬").contains(currentWord) || currentWord.matches("^[a-zA-Z]+$")) {
-                            difficultyWords.addFirst(currentWord);
-                            splitPoint = i;
-                        } else {
-                            break;
-                        }
-                    }
-
-                    if (!difficultyWords.isEmpty()) {
-                        difficulty = String.join(" ", difficultyWords);
-                        List<String> titleWords = new ArrayList<>();
-                        for (int i = 0; i < splitPoint; i++) {
-                            titleWords.add(words[i]);
-                        }
-                        raidTitle = String.join(" ", titleWords).trim();
-                    } else {
-                        raidTitle = remainingPart;
-                    }
+                    info.put("raid_name", val.replaceAll("[:.,\\s]", ""));
                 }
-
-                info.put("raid_name", raidTitle.replaceAll("[:.,\\s]", ""));
-                info.put("난이도", difficulty.replaceAll("[:.,\\s]", ""));
-                info.put("관문", gateNum);
-
-            } else if ("recorded_at".equals(fieldName)) {
-                String val = f.getInferText();
-                if (val == null) continue;
-                String recordedAt = val.replaceAll("[()]", "");
+            } else if ("recorded_at".equals(key)) {
+                String recordedAt = val.replaceAll("[()]", ""); // e.g., "2025..08.1921:16:50"
+                // OCR 결과에서 숫자만 추출합니다. 예: "2025..08.1921:16:50" -> "20250819211650"
                 String digitsOnly = recordedAt.replaceAll("\\D", "");
 
-                String formattedDate = recordedAt;
+                String formattedDate = recordedAt; // 파싱에 실패할 경우를 대비해 기본값으로 원본 값을 유지
                 if (digitsOnly.length() >= 14) {
+                    // YYYY.MM.DDHH:MM:SS 형식으로 날짜를 재구성합니다.
                     String year = digitsOnly.substring(0, 4);
                     String month = digitsOnly.substring(4, 6);
                     String day = digitsOnly.substring(6, 8);
                     String hour = digitsOnly.substring(8, 10);
                     String minute = digitsOnly.substring(10, 12);
                     String second = digitsOnly.substring(12, 14);
-                    formattedDate = String.format("%s.%s.%s %s:%s:%s", year, month, day, hour, minute, second);
+                    formattedDate = String.format("%s.%s.%s%s:%s:%s", year, month, day, hour, minute, second);
                 }
                 info.put("recorded_at", formattedDate);
             }
