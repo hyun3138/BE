@@ -24,6 +24,7 @@ public class PartyMemberService {
     private final UserRepository users;
     private final FriendRepository friends;
     private final BlockedUserRepository blocks;
+    private final CharacterRepository characterRepository;
 
     @Transactional
     public void addMemberById(UUID partyId, Long ownerId, Long targetUserId) {
@@ -67,6 +68,10 @@ public class PartyMemberService {
         User targetUser = users.findById(targetUserId)
                 .orElseThrow(() -> new IllegalArgumentException("추가할 사용자를 찾을 수 없습니다."));
 
+        // 추가할 멤버의 메인 캐릭터가 등록되어 있는지 확인
+        Character mainCharacter = characterRepository.findByName(targetUser.getMainCharacter())
+                .orElseThrow(() -> new IllegalStateException("추가하려는 사용자의 대표 캐릭터가 등록되어 있지 않습니다."));
+
         PartyMember member = members.findByParty_PartyIdAndUser_UserId(partyId, targetUserId)
                 .orElseGet(() -> PartyMember.builder() // 신규 멤버
                         .id(new PartyMemberId(partyId, targetUserId))
@@ -80,6 +85,7 @@ public class PartyMemberService {
         member.setSubparty(subpartyToAssign);
         member.setRole(null);
         member.setColeader(false);
+        member.setCharacterId(mainCharacter.getCharacterId()); // 조회된 캐릭터 ID로 설정
 
         members.save(member);
     }
