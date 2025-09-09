@@ -3,9 +3,12 @@ package com.example.Loark.Service;
 import com.example.Loark.Entity.Party;
 import com.example.Loark.Entity.PartyMember;
 import com.example.Loark.Entity.PartyMemberId;
+import com.example.Loark.Entity.PartyRun;
 import com.example.Loark.Entity.User;
 import com.example.Loark.Repository.PartyMemberRepository;
 import com.example.Loark.Repository.PartyRepository;
+import com.example.Loark.Repository.PartyRunMemberRepository;
+import com.example.Loark.Repository.PartyRunRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -19,6 +22,8 @@ import java.util.UUID;
 public class PartyService {
     private final PartyRepository partyRepository;
     private final PartyMemberRepository partyMemberRepository;
+    private final PartyRunRepository partyRunRepository;
+    private final PartyRunMemberRepository partyRunMemberRepository;
 
     /** 공대 생성: owner = me, visibility 검증 */
     @Transactional
@@ -97,7 +102,22 @@ public class PartyService {
 
     @Transactional
     public void deleteOwned(UUID partyId, User user) {
-        Party p = getOwnedOrThrow(partyId, user.getUserId()); // 소유권 검증
+        // 1. 파티 소유권 확인
+        Party p = getOwnedOrThrow(partyId, user.getUserId());
+
+        // 2. 이 파티와 관련된 모든 PartyRun 기록을 조회
+        List<PartyRun> runs = partyRunRepository.findByParty_PartyIdOrderByCreatedAtDesc(partyId);
+        if (!runs.isEmpty()) {
+            // 3. PartyRun에 속한 모든 PartyRunMember를 먼저 삭제 (손자 데이터 삭제)
+            partyRunMemberRepository.deleteAllByPartyRunIn(runs);
+            // 4. 모든 PartyRun을 삭제 (자식 데이터 삭제)
+            partyRunRepository.deleteAllByParty(p);
+        }
+
+        // 5. 이 파티에 속한 모든 PartyMember를 삭제 (다른 자식 데이터 삭제)
+        partyMemberRepository.deleteAllByParty(p);
+
+        // 6. 마지막으로 파티 자체를 삭제 (부모 데이터 삭제)
         partyRepository.delete(p);
     }
 

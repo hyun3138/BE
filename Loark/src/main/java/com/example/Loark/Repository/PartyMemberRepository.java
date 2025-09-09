@@ -21,4 +21,6 @@ public interface PartyMemberRepository extends JpaRepository<PartyMember, PartyM
     List<PartyMember> findByUser_UserIdAndLeftAtIsNull(Long userId);
 
     List<PartyMember> findByParty_PartyIdAndLeftAtIsNull(UUID partyId);
+
+    void deleteAllByParty(Party party);
 }
