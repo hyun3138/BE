@@ -1,6 +1,7 @@
 package com.example.Loark.Service;
 
 import com.example.Loark.Entity.*;
+import com.example.Loark.Entity.Character;
 import com.example.Loark.Repository.*;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
