@@ -1,6 +1,9 @@
 package com.example.Loark.DTO;
 
 import lombok.*;
+
+import java.math.BigDecimal;
+
 @Getter @Setter @Builder @NoArgsConstructor @AllArgsConstructor
 public class PartyMemberResponse {
     private Long userId;
@@ -11,4 +14,10 @@ public class PartyMemberResponse {
     private String joinedAt;
     private String leftAt;  // null이면 재직중
     private boolean owner;  // 공대장 여부(표시용)
+
+    // 추가된 필드
+    private String mainCharacterName;
+    private String server;
+    private BigDecimal itemLevel;
+    private String characterClass;
 }
