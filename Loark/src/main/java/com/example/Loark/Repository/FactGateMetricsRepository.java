@@ -126,7 +126,7 @@ public class FactGateMetricsRepository {
                 support_dps, support_attack_buff_effectiveness_rate,
                 support_brand_buff_effectiveness_rate, support_damage_buff2_effectiveness_rate,
                 support_damage_increase_effectiveness_rate, support_assist_total_damage,
-                counter_success, stagger_damage, party_heal_amount
+                counter_success, stagger_damage, party_heal_amount, ts
             FROM
                 statistic.fact_gate_metrics
             WHERE
@@ -143,7 +143,7 @@ public class FactGateMetricsRepository {
                         .raidName((String) row[1])
                         .gateNumber(row[2] != null ? ((Number) row[2]).shortValue() : null)
                         .difficulty((String) row[3])
-                        .playTime(toDuration(row[4])) // 변환 메소드 사용
+                        .playTime(toDuration(row[4]))
                         .characterId((String) row[5])
                         .className((String) row[6])
                         .role((String) row[7])
@@ -162,6 +162,7 @@ public class FactGateMetricsRepository {
                         .counterSuccess(toLongList(row[20]))
                         .staggerDamage(toLongList(row[21]))
                         .partyHealAmount(toDoubleList(row[22]))
+                        .ts(row[23] instanceof Instant ? (Instant) row[23] : null)
                         .build())
                 .collect(Collectors.toList());
     }
@@ -175,7 +176,7 @@ public class FactGateMetricsRepository {
                 support_dps, support_attack_buff_effectiveness_rate,
                 support_brand_buff_effectiveness_rate, support_damage_buff2_effectiveness_rate,
                 support_damage_increase_effectiveness_rate, support_assist_total_damage,
-                counter_success, stagger_damage, party_heal_amount
+                counter_success, stagger_damage, party_heal_amount, ts
             FROM
                 statistic.fact_gate_metrics
             WHERE
@@ -212,13 +213,11 @@ public class FactGateMetricsRepository {
                         .counterSuccess(toLongList(row[20]))
                         .staggerDamage(toLongList(row[21]))
                         .partyHealAmount(toDoubleList(row[22]))
+                        .ts(row[23] instanceof Instant ? (Instant) row[23] : null)
                         .build())
                 .collect(Collectors.toList());
     }
 
-    /**
-     * 데이터베이스의 Interval 타입을 Duration 타입으로 변환하는 헬퍼 메소드
-     */
     private Duration toDuration(Object obj) {
         if (obj == null) {
             return null;
@@ -243,14 +242,13 @@ public class FactGateMetricsRepository {
                 Object array = ((Array) obj).getArray();
                 if (array instanceof Long[]) {
                     return Arrays.asList((Long[]) array);
-                } else if (array instanceof long[]) { // For primitive arrays
+                } else if (array instanceof long[]) {
                     return Arrays.stream((long[]) array).boxed().collect(Collectors.toList());
                 } else if (array instanceof Integer[]) {
                     return Arrays.stream((Integer[]) array).map(Integer::longValue).collect(Collectors.toList());
                 }
             }
         } catch (SQLException e) {
-            // Log this exception
             return null;
         }
         return null;
@@ -263,12 +261,11 @@ public class FactGateMetricsRepository {
                 Object array = ((Array) obj).getArray();
                 if (array instanceof Double[]) {
                     return Arrays.asList((Double[]) array);
-                } else if (array instanceof double[]) { // For primitive arrays
+                } else if (array instanceof double[]) {
                     return Arrays.stream((double[]) array).boxed().collect(Collectors.toList());
                 }
             }
         } catch (SQLException e) {
-            // Log this exception
             return null;
         }
         return null;
