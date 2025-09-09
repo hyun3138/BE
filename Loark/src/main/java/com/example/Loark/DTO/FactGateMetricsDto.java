@@ -8,7 +8,6 @@ import lombok.NoArgsConstructor;
 import java.math.BigDecimal;
 import java.time.Duration;
 import java.time.Instant;
-import java.util.List;
 
 @Data
 @Builder
@@ -40,9 +39,9 @@ public class FactGateMetricsDto {
     private Double supportDamageBuff2EffectivenessRate;
     private Double supportDamageIncreaseEffectivenessRate;
     private BigDecimal supportAssistTotalDamage;
-    
-    // 추가된 필드
-    private List<Long> counterSuccess;
-    private List<Long> staggerDamage;
-    private List<Double> partyHealAmount;
+
+    // 타입 수정된 필드
+    private Integer counterSuccess;
+    private Integer staggerDamage;
+    private BigDecimal partyHealAmount;
 }
