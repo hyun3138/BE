@@ -57,7 +57,7 @@ public class PartyRunController {
             return ResponseEntity.status(401).body("인증이 필요합니다.");
         }
         try {
-            List<FactGateMetricsDto> combatRecords = partyRunService.getPartyRunCombatRecords(partyRunId);
+            List<FactGateMetricsDto> combatRecords = partyRunService.getPartyRunCombatRecords(partyRunId, me);
             return ResponseEntity.ok(combatRecords);
         } catch (IllegalStateException e) {
             return ResponseEntity.badRequest().body(e.getMessage());
