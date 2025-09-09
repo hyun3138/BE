@@ -21,6 +21,9 @@ public class PartyMember {
     @JoinColumn(name = "user_id", nullable = false)
     private User user;
 
+    @Column(name = "character_id")
+    private Long characterId; // 누락되었던 필드 추가
+
     // 1|2 or null (스키마 check 있음)
     @Column(name = "subparty")
     private Short subparty;
