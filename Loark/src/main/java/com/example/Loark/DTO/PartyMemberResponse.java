@@ -9,7 +9,7 @@ public class PartyMemberResponse {
     private Long userId;
     private String displayName;
     private String pictureUrl;
-    private Short subparty; // 1|2 또는 null
+    private Integer position; // 1-8 또는 null
     private String role;    // "dealer" | "support" 또는 null
     private String joinedAt;
     private String leftAt;  // null이면 재직중
