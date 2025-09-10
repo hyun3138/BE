@@ -11,7 +11,7 @@ public class PartyMemberMapper {
                 .userId(u.getUserId())
                 .displayName(u.getDisplayName())
                 .pictureUrl(u.getPictureUrl())
-                .subparty(m.getSubparty())
+                .position(m.getPosition())
                 .role(m.getRole())
                 .joinedAt(m.getJoinedAt() != null ? m.getJoinedAt().toString() : null)
                 .leftAt(m.getLeftAt() != null ? m.getLeftAt().toString() : null)
