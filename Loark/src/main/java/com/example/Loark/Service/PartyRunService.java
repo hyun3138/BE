@@ -73,7 +73,7 @@ public class PartyRunService {
                             .partyRun(partyRun)
                             .user(member.getUser())
                             .characterId(characterId) // 올바른 ID로 설정
-                            .subparty(member.getSubparty())
+                            .position(member.getPosition())
                             .role(member.getRole())
                             .build();
                 })
