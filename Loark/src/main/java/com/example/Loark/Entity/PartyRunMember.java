@@ -32,7 +32,7 @@ public class PartyRunMember {
     @Column(name = "character_id")
     private Long characterId;
 
-    private Short subparty;
+    private Integer position;
 
     private String role;
 }
