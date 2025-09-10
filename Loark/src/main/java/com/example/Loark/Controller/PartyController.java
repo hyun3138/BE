@@ -24,9 +24,14 @@ public class PartyController {
     private final PartyService partyService;
 
     @Data
-    static class SubpartySwapRequest {
+    static class PositionSwapRequest {
         private Long member1UserId;
         private Long member2UserId;
+    }
+
+    @Data
+    static class UpdateNameRequest {
+        private String name;
     }
 
     /** 공대 생성 (공대장 = 로그인 유저) */
@@ -62,13 +67,23 @@ public class PartyController {
         return ResponseEntity.ok("공대장 권한을 위임했습니다.");
     }
 
-    /** 공대장이 멤버의 서브파티를 수동으로 교체 */
-    @PutMapping("/{partyId}/swap-subparty")
-    public ResponseEntity<?> swapSubparty(@PathVariable UUID partyId,
+    /** 공대장이 멤버의 포지션을 수동으로 교체 */
+    @PutMapping("/{partyId}/swap-positions")
+    public ResponseEntity<?> swapPositions(@PathVariable UUID partyId,
                                           @AuthenticationPrincipal User me,
-                                          @RequestBody SubpartySwapRequest req) {
+                                          @RequestBody PositionSwapRequest req) {
         if (me == null) return ResponseEntity.status(401).body("인증 필요");
-        partyService.changeSubparty(partyId, me.getUserId(), req.getMember1UserId(), req.getMember2UserId());
-        return ResponseEntity.ok("멤버의 서브파티를 교체했습니다.");
+        partyService.swapPositions(partyId, me.getUserId(), req.getMember1UserId(), req.getMember2UserId());
+        return ResponseEntity.ok("멤버의 포지션을 교체했습니다.");
+    }
+
+    /** 공대 이름 변경 */
+    @PatchMapping("/{partyId}/name")
+    public ResponseEntity<?> updateName(@PathVariable UUID partyId,
+                                        @AuthenticationPrincipal User me,
+                                        @RequestBody UpdateNameRequest req) {
+        if (me == null) return ResponseEntity.status(401).body("인증 필요");
+        partyService.updateName(partyId, me.getUserId(), req.getName());
+        return ResponseEntity.ok("공대 이름이 변경되었습니다.");
     }
 }

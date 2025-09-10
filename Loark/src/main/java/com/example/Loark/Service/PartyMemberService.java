@@ -8,6 +8,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.OffsetDateTime;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -59,9 +60,14 @@ public class PartyMemberService {
             throw new IllegalStateException("이미 공대 멤버입니다.");
         }
 
-        // 7) 서브파티 배정 로직
-        long subparty1Count = members.countByParty_PartyIdAndSubpartyAndLeftAtIsNull(partyId, 1);
-        short subpartyToAssign = (subparty1Count < 4) ? (short) 1 : (short) 2;
+        // 7) 포지션 배정 로직
+        Integer maxPosition = members.findByParty_PartyIdAndLeftAtIsNull(partyId)
+                .stream()
+                .map(PartyMember::getPosition)
+                .filter(p -> p != null)
+                .max(Comparator.naturalOrder())
+                .orElse(0);
+        int newPosition = maxPosition + 1;
 
         // 8) 멤버 추가 또는 재가입 처리
         Party party = parties.findById(partyId)
@@ -83,7 +89,7 @@ public class PartyMemberService {
 
         // 신규 또는 재가입 시 공통으로 설정할 값들
         member.setLeftAt(null);
-        member.setSubparty(subpartyToAssign);
+        member.setPosition(newPosition);
         member.setRole(null);
         member.setColeader(false);
         member.setCharacterId(mainCharacter.getCharacterId()); // 조회된 캐릭터 ID로 설정
