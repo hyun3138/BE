@@ -80,11 +80,18 @@ public class PartyService {
         }
 
         Integer position1 = member1.getPosition();
-        member1.setPosition(member2.getPosition());
-        member2.setPosition(position1);
+        Integer position2 = member2.getPosition();
 
+        // 한쪽을 null로 만들어 UNIQUE 제약조건을 피합니다.
+        member1.setPosition(null);
+        partyMemberRepository.saveAndFlush(member1);
+
+        // 순서를 교체합니다.
+        member2.setPosition(position1);
+        partyMemberRepository.saveAndFlush(member2);
+
+        member1.setPosition(position2);
         partyMemberRepository.save(member1);
-        partyMemberRepository.save(member2);
     }
 
     public Party getOwnedOrThrow(UUID partyId, Long meId) {
@@ -126,15 +133,22 @@ public class PartyService {
                 .filter(m -> m.getLeftAt() == null)
                 .orElseThrow(() -> new IllegalStateException("위임 대상은 현재 공대 멤버여야 합니다."));
 
-        oldOwnerMember.setColeader(false);;
+        oldOwnerMember.setColeader(false);
         newOwnerMember.setColeader(true);
 
         Integer oldOwnerPosition = oldOwnerMember.getPosition();
-        oldOwnerMember.setPosition(newOwnerMember.getPosition());
-        newOwnerMember.setPosition(oldOwnerPosition);
+        Integer newOwnerPosition = newOwnerMember.getPosition();
 
+        // 한쪽을 null로 만들어 UNIQUE 제약조건을 피합니다.
+        oldOwnerMember.setPosition(null);
+        partyMemberRepository.saveAndFlush(oldOwnerMember);
+
+        // 순서를 교체합니다.
+        newOwnerMember.setPosition(oldOwnerPosition);
+        partyMemberRepository.saveAndFlush(newOwnerMember);
+
+        oldOwnerMember.setPosition(newOwnerPosition);
         partyMemberRepository.save(oldOwnerMember);
-        partyMemberRepository.save(newOwnerMember);
 
         p.setOwner(newOwnerMember.getUser());
         partyRepository.save(p);
