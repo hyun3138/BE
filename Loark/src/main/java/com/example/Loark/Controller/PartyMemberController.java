@@ -74,7 +74,7 @@ public class PartyMemberController {
                 .userId(user.getUserId())
                 .displayName(user.getDisplayName())
                 .pictureUrl(user.getPictureUrl())
-                .subparty(member.getSubparty())
+                .position(member.getPosition())
                 .role(member.getRole())
                 .joinedAt(member.getJoinedAt() != null ? member.getJoinedAt().format(DateTimeFormatter.ISO_OFFSET_DATE_TIME) : null)
                 .leftAt(member.getLeftAt() != null ? member.getLeftAt().format(DateTimeFormatter.ISO_OFFSET_DATE_TIME) : null)

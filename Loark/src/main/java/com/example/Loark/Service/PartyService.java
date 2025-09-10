@@ -15,6 +15,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.Comparator;
 import java.util.List;
 import java.util.UUID;
 
@@ -53,7 +54,7 @@ public class PartyService {
                 .party(p)
                 .user(me)
                 .characterId(mainCharacter.getCharacterId()) // 조회된 캐릭터 ID로 설정
-                .subparty((short) 1) // 파티장은 1번 파티에 자동 배정
+                .position(1) // 파티장은 1번 포지션에 자동 배정
                 .coleader(true) // 파티장은 부공대장으로 자동 설정
                 .build();
         partyMemberRepository.save(ownerMember);
@@ -62,7 +63,7 @@ public class PartyService {
     }
 
     @Transactional
-    public void changeSubparty(UUID partyId, Long ownerId, Long member1UserId, Long member2UserId) {
+    public void swapPositions(UUID partyId, Long ownerId, Long member1UserId, Long member2UserId) {
         Party party = getOwnedOrThrow(partyId, ownerId);
 
         PartyMember member1 = partyMemberRepository.findByParty_PartyIdAndUser_UserId(partyId, member1UserId)
@@ -73,18 +74,14 @@ public class PartyService {
                 .filter(m -> m.getLeftAt() == null)
                 .orElseThrow(() -> new IllegalStateException("두 번째 멤버를 찾을 수 없습니다."));
 
-        if (member1.getSubparty() == member2.getSubparty()) {
-            return;
-        }
-
         Long partyOwnerId = party.getOwner().getUserId();
         if (partyOwnerId.equals(member1.getUser().getUserId()) || partyOwnerId.equals(member2.getUser().getUserId())) {
-            throw new IllegalStateException("공대장은 팀을 변경할 수 없습니다.");
+            throw new IllegalStateException("공대장은 포지션을 변경할 수 없습니다.");
         }
 
-        short subparty1 = member1.getSubparty();
-        member1.setSubparty(member2.getSubparty());
-        member2.setSubparty(subparty1);
+        Integer position1 = member1.getPosition();
+        member1.setPosition(member2.getPosition());
+        member2.setPosition(position1);
 
         partyMemberRepository.save(member1);
         partyMemberRepository.save(member2);
@@ -132,15 +129,24 @@ public class PartyService {
         oldOwnerMember.setColeader(false);;
         newOwnerMember.setColeader(true);
 
-        if (newOwnerMember.getSubparty() == 2) {
-            newOwnerMember.setSubparty((short) 1);
-            oldOwnerMember.setSubparty((short) 2);
-        }
+        Integer oldOwnerPosition = oldOwnerMember.getPosition();
+        oldOwnerMember.setPosition(newOwnerMember.getPosition());
+        newOwnerMember.setPosition(oldOwnerPosition);
 
         partyMemberRepository.save(oldOwnerMember);
         partyMemberRepository.save(newOwnerMember);
 
         p.setOwner(newOwnerMember.getUser());
         partyRepository.save(p);
+    }
+
+    @Transactional
+    public void updateName(UUID partyId, Long userId, String name) {
+        if (name == null || name.isBlank()) {
+            throw new IllegalArgumentException("공대 이름은 필수입니다.");
+        }
+        Party party = getOwnedOrThrow(partyId, userId);
+        party.setName(name.strip());
+        partyRepository.save(party);
     }
 }
