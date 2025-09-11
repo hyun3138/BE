@@ -43,7 +43,9 @@ public class RoleService {
         Map.entry("리퍼", "Reaper"),
         Map.entry("소울이터", "Souleater"),
         Map.entry("도화가", "Artist"),
-        Map.entry("기상술사", "Aeromancer")
+        Map.entry("기상술사", "Aeromancer"),
+        Map.entry("발키리", "Valkyrie"),
+        Map.entry("환수사", "Wildsoul")
     );
 
     /**
