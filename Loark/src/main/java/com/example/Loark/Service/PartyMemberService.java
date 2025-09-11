@@ -27,6 +27,7 @@ public class PartyMemberService {
     private final FriendRepository friends;
     private final BlockedUserRepository blocks;
     private final CharacterRepository characterRepository;
+    private final RoleService roleService; // RoleService 주입
 
     @Transactional
     public void addMemberById(UUID partyId, Long ownerId, Long targetUserId) {
@@ -79,6 +80,9 @@ public class PartyMemberService {
         Character mainCharacter = characterRepository.findByName(targetUser.getMainCharacter())
                 .orElseThrow(() -> new IllegalStateException("추가하려는 사용자의 대표 캐릭터가 등록되어 있지 않습니다."));
 
+        // 캐릭터 클래스를 기반으로 role 조회
+        String role = roleService.getRoleByKoreanClassName(mainCharacter.getClazz());
+
         PartyMember member = members.findByParty_PartyIdAndUser_UserId(partyId, targetUserId)
                 .orElseGet(() -> PartyMember.builder() // 신규 멤버
                         .id(new PartyMemberId(partyId, targetUserId))
@@ -90,7 +94,7 @@ public class PartyMemberService {
         // 신규 또는 재가입 시 공통으로 설정할 값들
         member.setLeftAt(null);
         member.setPosition(newPosition);
-        member.setRole(null);
+        member.setRole(role); // 조회된 role 설정
         member.setColeader(false);
         member.setCharacterId(mainCharacter.getCharacterId()); // 조회된 캐릭터 ID로 설정
 
