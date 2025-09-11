@@ -28,6 +28,7 @@ public class PartyService {
     private final PartyRunRepository partyRunRepository;
     private final PartyRunMemberRepository partyRunMemberRepository;
     private final CharacterRepository characterRepository;
+    private final RoleService roleService; // RoleService 주입
 
     /** 공대 생성: owner = me, visibility 검증 */
     @Transactional
@@ -48,6 +49,9 @@ public class PartyService {
         Character mainCharacter = characterRepository.findByName(me.getMainCharacter())
                 .orElseThrow(() -> new IllegalStateException("파티를 생성하려면 대표 캐릭터가 등록되어 있어야 합니다."));
 
+        // 캐릭터 클래스를 기반으로 role 조회
+        String role = roleService.getRoleByKoreanClassName(mainCharacter.getClazz());
+
         // ✅ 공대장 자동 가입 (leftAt=null)
         PartyMember ownerMember = PartyMember.builder()
                 .id(new PartyMemberId(p.getPartyId(), me.getUserId()))
@@ -56,6 +60,7 @@ public class PartyService {
                 .characterId(mainCharacter.getCharacterId()) // 조회된 캐릭터 ID로 설정
                 .position(1) // 파티장은 1번 포지션에 자동 배정
                 .coleader(true) // 파티장은 부공대장으로 자동 설정
+                .role(role) // 조회된 role 설정
                 .build();
         partyMemberRepository.save(ownerMember);
 
